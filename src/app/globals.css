@@ -75,6 +75,18 @@
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     min-height: max(884px, 100dvh);
+    /* Prevent rubber-band overscroll on iOS */
+    overscroll-behavior: none;
+    /* Remove tap highlight on mobile */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Prevent iOS auto-zoom on input focus (inputs must be >= 16px font size) */
+  input, select, textarea {
+    font-size: max(16px, 1rem);
+  }
+  /* Smooth momentum scrolling on iOS */
+  * {
+    -webkit-overflow-scrolling: touch;
   }
   h1, h2, h3 {
     font-family: 'Plus Jakarta Sans', sans-serif;
@@ -84,5 +96,20 @@
   }
   .bg-primary-gradient {
     background: linear-gradient(135deg, #0f6b50 0%, #5faf8f 100%);
+  }
+
+  /* Safe area padding for devices with home indicator / gesture bar */
+  .pb-safe {
+    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  }
+
+  /* Bottom padding for page main content (accounts for fixed bottom nav + safe area) */
+  .page-bottom-padding {
+    padding-bottom: max(9rem, calc(7rem + env(safe-area-inset-bottom)));
+  }
+
+  /* Bottom nav bar height with safe area */
+  .bottom-nav-height {
+    height: calc(5rem + env(safe-area-inset-bottom));
   }
 }

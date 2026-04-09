@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
-import { ClerkProvider } from '@clerk/nextjs'
+import { AuthProvider } from "@/context/AuthContext";
+import { AppProvider } from "@/context/AppContext";
+import { PwaRegister } from "@/components/PwaRegister";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -13,12 +15,18 @@ const inter = Inter({
   variable: "--font-body",
 });
 
-import type { Viewport } from "next";
-
 export const metadata: Metadata = {
   title: "NeuroBee",
   description: "A gentle space for supportive growth and daily insights.",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "NeuroBee",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
@@ -26,6 +34,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -33,24 +42,25 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isMockEnv = !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY === "pk_test_placeholder";
-
-  const content = (
+  return (
     <html lang="en" className="light">
       <head>
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body
         className={`${inter.variable} ${plusJakartaSans.variable} bg-surface font-body text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed-variant`}
       >
-        {children}
+        {/* AuthProvider renders AuthScreen if not logged in, otherwise renders children */}
+        <PwaRegister />
+        <AuthProvider>
+          <AppProvider>
+            {children}
+          </AppProvider>
+        </AuthProvider>
       </body>
     </html>
   );
-
-  if (isMockEnv) {
-    return content;
-  }
-
-  return <ClerkProvider>{content}</ClerkProvider>;
 }
