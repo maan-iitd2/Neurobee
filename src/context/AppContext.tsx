@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { getStoredItem, setStoredItem, migrateAppState } from "@/lib/storage";
 import { QUESTIONS, Domain, DOMAIN_LABELS, computeRiskScore, RiskScore } from "@/lib/questions";
-import { loadAuthStorage } from "@/lib/auth";
+
 import {
   AppState as AppStateType,
   Session,
@@ -53,11 +53,7 @@ const DEFAULT_STATE: AppState = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getUserStorageKey(): string {
-  const auth = loadAuthStorage();
-  const uid = auth.currentUserId ?? "guest";
-  return `neurobee_state_${uid}`;
-}
+const APP_STATE_KEY = "neurobee_state";
 
 function computeInsights(answers: Record<string, string>): InsightSummary {
   const answeredCount = Object.keys(answers).length;
@@ -133,7 +129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Hydrate from localStorage with migration
   useEffect(() => {
-    const key = getUserStorageKey();
+    const key = APP_STATE_KEY;
     const raw = getStoredItem<unknown>(key);
     const migrated = raw ? migrateAppState(raw) : null;
     setState(migrated ? { ...DEFAULT_STATE, ...(migrated as Partial<AppState>) } : DEFAULT_STATE);
@@ -143,7 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Persist on every state change after hydration
   useEffect(() => {
     if (hydrated) {
-      setStoredItem(getUserStorageKey(), state);
+      setStoredItem(APP_STATE_KEY, state);
     }
   }, [state, hydrated]);
 

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
-import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
 import { DOMAIN_ICONS } from "@/lib/questions";
 import Link from "next/link";
 import { ObservationPromptBanner } from "@/components/ObservationPromptBanner";
@@ -72,12 +72,12 @@ const GUIDANCE_CARDS = [
 
 export default function InsightsPage() {
   const { state, insights, sessionCount, latestSession } = useApp();
-  const { user } = useAuth();
+  const { profile } = useProfile();
   const fusedScore = latestSession?.fusedScore;
   const { confidence, answeredCount, domainScores, primaryDeveloping, riskScore } = insights;
 
-  const childName = user?.childName ?? "your child";
-  const childAge = user?.childAge ?? 0;
+  const childName = profile?.childName ?? "your child";
+  const childAge = profile?.childAge ?? 0;
   const hasData = answeredCount > 0;
   const riskMeta = RISK_META[riskScore.level];
 
@@ -536,13 +536,10 @@ export default function InsightsPage() {
                     {aiInsight ? `Tip ${i + 1}` : GUIDANCE_CARDS[i]?.title ?? `Tip ${i + 1}`}
                   </h4>
                   <p className="text-on-surface-variant text-sm leading-relaxed">{tip}</p>
-                  <Link
-                    href="/reflection"
-                    className="flex items-center gap-2 text-primary font-semibold text-sm hover:underline"
-                  >
+                  <div className="flex items-center gap-2 text-primary font-semibold text-sm">
                     <span className="material-symbols-outlined text-base">{icons[i % icons.length]}</span>
-                    Try this activity
-                  </Link>
+                    Try this at home
+                  </div>
                 </div>
               );
             })}

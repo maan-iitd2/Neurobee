@@ -18,7 +18,6 @@ interface AuthUser {
   parentName: string;
   childName: string;
   childDob: string;
-  email: string;
 }
 
 const PRIMARY = [15, 107, 80] as [number, number, number];   // #0f6b50

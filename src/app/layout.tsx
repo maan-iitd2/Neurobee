@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
-import { AuthProvider } from "@/context/AuthContext";
+import { ProfileProvider } from "@/context/ProfileContext";
 import { AppProvider } from "@/context/AppContext";
+
 import { PwaRegister } from "@/components/PwaRegister";
 import "./globals.css";
 
@@ -53,13 +54,12 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${plusJakartaSans.variable} bg-surface font-body text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed-variant`}
       >
-        {/* AuthProvider renders AuthScreen if not logged in, otherwise renders children */}
         <PwaRegister />
-        <AuthProvider>
+        <ProfileProvider>
           <AppProvider>
             {children}
           </AppProvider>
-        </AuthProvider>
+        </ProfileProvider>
       </body>
     </html>
   );

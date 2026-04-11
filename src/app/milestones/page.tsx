@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
-import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
 import { QUESTIONS, SECTIONS } from "@/lib/questions";
 
 type Answer = "Often" | "Sometimes" | "Rarely";
@@ -35,8 +35,8 @@ const OPTION_META: Record<Answer, { icon: string; color: string; bg: string; bor
 export default function MilestonesPage() {
   const router = useRouter();
   const { saveAnswers } = useApp();
-  const { user } = useAuth();
-  const childName = user?.childName ?? "your child";
+  const { profile } = useProfile();
+  const childName = profile?.childName ?? "your child";
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});

@@ -1,223 +1,345 @@
 "use client";
 
+import Link from "next/link";
+import { useEffect, useState, useCallback } from "react";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
+import { useProfile } from "@/context/ProfileContext";
 import { useApp } from "@/context/AppContext";
-import { useAuth } from "@/context/AuthContext";
-import Link from "next/link";
+import { computeChildAgeMonths } from "@/lib/profile";
+import { DOMAIN_LABELS, type Domain } from "@/lib/questions";
 
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+interface DailyTip {
+  title: string;
+  description: string;
+  icon: string;
+  domain: string;
 }
 
-export default function Home() {
-  const { state, insights, dayCount, sessionCount, trend, nextCheckInDate, latestSession } = useApp();
-  const { user } = useAuth();
+export default function HomePage() {
+  const { profile } = useProfile();
+  const { state, latestSession, insights, nextCheckInDate } = useApp();
+  const childName = profile?.childName ?? "your child";
 
-  const childName = user?.childName ?? "your child";
-  const parentName = user?.parentName ?? "";
+  const hasAssessment = state.hasCompletedQuestionnaire && state.sessions.length > 0;
+
+  // Gemma-powered daily tip
+  const [dailyTip, setDailyTip] = useState<DailyTip | null>(null);
+  const [tipLoading, setTipLoading] = useState(false);
+  const [tipError, setTipError] = useState(false);
+
+  const fetchDailyTip = useCallback(async () => {
+    if (!profile) return;
+    setTipLoading(true);
+    setTipError(false);
+
+    const strengths: string[] = [];
+    const developing: string[] = [];
+    if (latestSession) {
+      for (const d of latestSession.domainScores) {
+        if (d.level === "strong") strengths.push(d.label);
+        else if (d.level === "emerging") developing.push(d.label);
+      }
+    }
+
+    try {
+      const res = await fetch("/api/daily-tip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          childName: profile.childName,
+          childAgeMonths: computeChildAgeMonths(profile.childDob),
+          riskLevel: latestSession?.riskScore.level,
+          strengths,
+          developing,
+        }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      setDailyTip(data);
+    } catch {
+      setTipError(true);
+    } finally {
+      setTipLoading(false);
+    }
+  }, [profile, latestSession]);
+
+  useEffect(() => {
+    fetchDailyTip();
+  }, [fetchDailyTip]);
+
+  // Compute journey day
+  const journeyDay = state.journeyStartDate
+    ? Math.max(1, Math.ceil((Date.now() - new Date(state.journeyStartDate).getTime()) / 86400000))
+    : 1;
+
+  // Time-based greeting
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <>
       <TopBar />
-      <main className="px-6 pt-6 max-w-xl mx-auto space-y-8 page-bottom-padding">
-        {/* Reassurance Banner */}
-        <section className="bg-primary/10 px-4 py-3 rounded-xl border border-primary/20">
-          <p className="text-on-secondary-container font-medium text-sm text-center">
-            You&apos;re helping {childName} grow every day. ✨
+      <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-5 pt-4 page-bottom-padding">
+        {/* Greeting */}
+        <section className="space-y-1">
+          <h1 className="font-headline text-2xl md:text-3xl font-extrabold tracking-tight text-on-surface">
+            {greeting}, {profile?.parentName?.split(" ")[0]} 🌿
+          </h1>
+          <p className="font-body text-sm text-on-surface-variant">
+            Day {journeyDay} of {childName}&apos;s journey with NeuroBee
           </p>
         </section>
 
-        {/* Welcome Header */}
-        <section className="space-y-1">
-          <div className="flex items-center justify-between">
-            <p className="font-label text-xs uppercase tracking-[0.05em] text-tertiary">
-              {getGreeting()}{parentName ? `, ${parentName}` : ""}
-            </p>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-primary/10 text-on-secondary-container text-[10px] font-bold uppercase tracking-wider border border-primary/20">
-              Day {dayCount} of Journey
-            </span>
-          </div>
-          <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
-            Time to play.
-          </h2>
-          {/* Trend + next check-in */}
-          {(trend || nextCheckInDate) && (
-            <div className="flex items-center gap-2 flex-wrap mt-2">
-              {trend && (
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  trend === "improving" ? "bg-success/15 text-success"
-                  : trend === "worsening" ? "bg-error/15 text-error"
-                  : "bg-surface-container text-on-surface-variant"
-                }`}>
-                  <span className="material-symbols-outlined text-xs">
-                    {trend === "improving" ? "trending_down" : trend === "worsening" ? "trending_up" : "trending_flat"}
-                  </span>
-                  {trend === "improving" ? "Improving" : trend === "worsening" ? "Needs attention" : "Stable"}
-                </span>
-              )}
-              {nextCheckInDate && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-fixed text-primary text-[10px] font-bold uppercase tracking-wider">
-                  <span className="material-symbols-outlined text-xs">event</span>
-                  Next check-in {nextCheckInDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                </span>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* Insight Preview Card */}
-        <Link href="/insights" className="block group">
-          <div className="bg-tertiary-fixed p-5 rounded-xl flex items-center gap-4 transition-transform active:scale-[0.98] hover:brightness-95">
-            <div className="bg-white/50 w-12 h-12 rounded-full flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-on-tertiary-fixed">auto_awesome</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-on-tertiary-fixed-variant mb-1">
-                {sessionCount > 0
-                  ? `Based on ${sessionCount} observation${sessionCount > 1 ? "s" : ""}…`
-                  : "Start your first observation…"}
-              </p>
-              <p className="text-sm font-semibold text-on-tertiary-fixed leading-snug">
-                {insights.answeredCount > 0
-                  ? `${childName} is showing beautiful development patterns.`
-                  : `Complete a milestone check-in to see ${childName}'s insights.`}
-              </p>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-on-tertiary-fixed/60 mt-1">
-                Tap to see full insight →
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        {/* Primary Play Session CTA */}
-        <section className="bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant botanical-shadow">
-          <div className="p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-container text-[10px] font-bold uppercase tracking-widest">
-                Recommended
-              </span>
-              <span className="text-[10px] font-medium text-tertiary">~5 minutes</span>
-            </div>
-            <h3 className="font-headline text-xl font-bold tracking-tight text-primary">
-              Interactive Sensory Storytelling
-            </h3>
-            <p className="text-on-surface-variant leading-relaxed text-sm">
-              Focus on joint attention and emotional expression through guided movement.
-            </p>
-            <Link
-              href="/reflection"
-              className="w-full bg-primary text-white px-8 py-4 rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all duration-200 hover:opacity-90"
-            >
-              Start Today&apos;s Play Session
-              <span className="material-symbols-outlined text-[18px]">play_circle</span>
-            </Link>
-          </div>
-          <div className="h-44 overflow-hidden">
-            <img
-              alt="Child playing with sensory toys"
-              className="w-full h-full object-cover"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0tG3sP6cTEwDWKrUH7AThCh2pjHROQqpXFKSJJXKElZsHtPYAviwDu6SCWWggrRL0vn_PlGu4xOSI5bLuF0j5QYZav0g_NvES-5bsgAvTYMhow-yjW2kTidEHjji-FUQdk90qlzdBEotTzPHFDYBF1tKYTtGxcAHv_ABcr5m3p56WWBC7VR9KPy6KyWOAu_cBnxK3VwyMyJJxXFRxGfkuwP3pjnNvpVWKdtczBAityHt4O8KCVqqLUSTzgP3vKB7YVQsqMUn9gg0"
-            />
-          </div>
-        </section>
-
-        {/* Growth Overview */}
-        <section className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">
-              Growth Overview
-            </h2>
-            <Link href="/insights" className="text-sm font-semibold text-primary">
-              View Insights
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 gap-3">
-            {[
-              { icon: "diversity_3", label: "Social Communication", sub: "Building connection patterns" },
-              { icon: "visibility", label: "Joint Attention", sub: "Building shared focus" },
-              { icon: "fitness_center", label: "Motor Development", sub: "Exploring physical movement", badge: "ACTIVE" },
-            ].map(({ icon, label, sub, badge }) => (
-              <div key={label} className="bg-surface-container-low p-4 rounded-xl flex items-center gap-4">
-                <div className="bg-white w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-primary">{icon}</span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10px] uppercase tracking-widest text-tertiary font-bold">{label}</p>
-                    {badge && (
-                      <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[8px] font-bold">
-                        {badge}
-                      </span>
-                    )}
-                  </div>
-                  <p className="font-headline text-base font-bold text-on-surface">{sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Camera Screening card */}
-        <Link href="/screen">
-          <section className="bg-primary/8 border border-primary/20 p-5 rounded-xl flex gap-4 items-center botanical-shadow hover:bg-primary/12 transition-all cursor-pointer">
-            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                videocam
-              </span>
-            </div>
-            <div className="space-y-1 min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-widest text-primary font-bold">New · Vision Screening</p>
-              <h3 className="font-headline text-base font-bold text-on-surface">Camera-Based Screen</h3>
-              <p className="text-xs text-on-surface-variant">Auto-detect eye contact, name response &amp; gaze following.</p>
-            </div>
-            <span className="material-symbols-outlined text-primary shrink-0">arrow_forward</span>
-          </section>
-        </Link>
-
-        {/* Quick Activity */}
-        <section className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant flex gap-4 items-center botanical-shadow">
-          <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0">
-            <img
-              alt="Mirror play activity"
-              className="w-full h-full object-cover"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwT0RSi5WShCz0gOWVUDEyXb1dqYqRCDO01Rsm8w5uyosrzUawKKBe_EJPFO1vSfZ3gykFvJTpdKkl_8n_RkwDD18z9GtIwHdbytpUTbPxGVvYwd8cU1eJvQ_rw5IXdSUvf6SDt9oOR1KCHYFw9w0UvAfXoPIN0EzP6Qe-IZF49gqTNwdNjA-b-vsuLJePwa5r2vQoXw5MG43i0Ah2u8TbGHfqczh5NIt_Hw9qTMvyw2tfUOEdWsVUN_GTeqeks0IqynpAEbW9FLs"
-            />
-          </div>
-          <div className="space-y-1 min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-primary font-bold">Quick Activity</p>
-            <h3 className="font-headline text-base font-bold text-on-surface">Mirror Play Session</h3>
-            <p className="text-xs text-on-surface-variant">A 5-minute exercise for facial mimicry.</p>
-          </div>
-        </section>
-
-        {/* Milestone CTA */}
-        <section className="pb-4">
-          <Link
-            href="/milestones"
-            className="w-full flex items-center justify-between p-4 rounded-xl bg-primary/5 border border-primary/10 group active:scale-[0.98] transition-all"
-          >
+        {/* ── Gemma Daily Tip ─────────────────────────────────────────── */}
+        <section className="rounded-3xl bg-primary-fixed/30 border border-primary/10 p-5 space-y-3">
+          {tipLoading ? (
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-xl">psychology</span>
-              <div className="text-left">
-                <p className="font-headline text-sm font-bold text-on-surface">
-                  {sessionCount > 0 ? "Start New Observation" : "Begin Milestone Check-In"}
+              <span className="material-symbols-outlined text-primary text-xl animate-spin">progress_activity</span>
+              <p className="font-body text-sm text-on-surface-variant">Generating today&apos;s activity tip with Gemma…</p>
+            </div>
+          ) : dailyTip ? (
+            <>
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {dailyTip.icon}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-label font-semibold uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                      Today&apos;s Activity
+                    </span>
+                    <span className="text-[10px] font-label text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full">
+                      {dailyTip.domain}
+                    </span>
+                  </div>
+                  <h3 className="font-headline font-bold text-lg text-on-surface mt-1.5">
+                    {dailyTip.title}
+                  </h3>
+                </div>
+              </div>
+              <p className="font-body text-sm text-on-surface-variant leading-relaxed pl-[52px]">
+                {dailyTip.description}
+              </p>
+            </>
+          ) : tipError ? (
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-tertiary text-xl">lightbulb</span>
+              <div className="flex-1">
+                <p className="font-body text-sm text-on-surface-variant">
+                  Couldn&apos;t reach Gemma right now. Make sure LM Studio is running.
                 </p>
-                <p className="text-[11px] text-on-surface-variant">
-                  {sessionCount > 0
-                    ? `${sessionCount} session${sessionCount > 1 ? "s" : ""} completed`
-                    : `Answer 20 questions about ${childName}'s development`}
-                </p>
+                <button
+                  onClick={fetchDailyTip}
+                  className="mt-2 text-xs font-label font-semibold text-primary hover:underline"
+                >
+                  Try again
+                </button>
               </div>
             </div>
-            <span className="material-symbols-outlined text-tertiary/40 group-hover:text-primary transition-colors">
-              arrow_forward
-            </span>
-          </Link>
+          ) : null}
         </section>
+
+        {/* ── State-Aware Content ──────────────────────────────────── */}
+        {!hasAssessment ? (
+          /* ── Empty State: No Assessment Done ── */
+          <section className="space-y-5">
+            {/* Hero CTA */}
+            <div className="rounded-3xl bg-surface-container botanical-shadow p-6 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>emoji_objects</span>
+                <span className="text-[10px] font-label font-semibold uppercase tracking-widest text-primary">Get Started</span>
+              </div>
+              <h2 className="font-headline text-2xl font-bold tracking-tight text-on-surface leading-snug">
+                Start {childName}&apos;s first milestone check-in
+              </h2>
+              <p className="font-body text-sm text-on-surface-variant leading-relaxed">
+                Answer 20 simple observation questions about {childName}&apos;s daily behaviour — aligned with
+                M-CHAT-R and Indian paediatric guidelines. Takes about 5–10 minutes.
+              </p>
+              <Link
+                href="/milestones"
+                className="inline-flex items-center justify-center gap-2 w-full py-4 bg-primary-gradient text-on-primary font-headline font-bold rounded-full shadow-lg shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all duration-200"
+              >
+                Begin Assessment
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </Link>
+            </div>
+
+            {/* Camera screening option */}
+            <Link
+              href="/screen"
+              className="flex items-center gap-4 rounded-3xl bg-surface-container botanical-shadow p-5 hover:scale-[1.01] active:scale-[0.99] transition-all"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-secondary-container/40 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-secondary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  videocam
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-label font-semibold uppercase tracking-widest text-secondary">
+                    Vision Screening
+                  </span>
+                </div>
+                <h3 className="font-headline font-bold text-base text-on-surface mt-0.5">
+                  Camera-Based Screen
+                </h3>
+                <p className="font-body text-xs text-on-surface-variant mt-0.5">
+                  Auto-detect eye contact, name response &amp; gaze following
+                </p>
+              </div>
+              <span className="material-symbols-outlined text-tertiary">arrow_forward</span>
+            </Link>
+          </section>
+        ) : (
+          /* ── Data State: Assessment Completed ── */
+          <section className="space-y-5">
+            {/* Risk Summary Card */}
+            <div className="rounded-3xl bg-surface-container botanical-shadow p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={`text-[10px] font-label font-semibold uppercase tracking-widest px-2.5 py-1 rounded-full ${
+                    insights.riskScore.level === "low"
+                      ? "bg-success/15 text-success"
+                      : insights.riskScore.level === "medium"
+                      ? "bg-warning/15 text-warning"
+                      : "bg-error/15 text-error"
+                  }`}>
+                    {insights.riskScore.level} concern
+                  </span>
+                  {latestSession?.fusedScore && (
+                    <span className="ml-2 text-[10px] font-label text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full">
+                      Fused
+                    </span>
+                  )}
+                </div>
+                <p className={`font-display text-3xl font-bold ${
+                  insights.riskScore.level === "low"
+                    ? "text-success"
+                    : insights.riskScore.level === "medium"
+                    ? "text-warning"
+                    : "text-error"
+                }`}>
+                  {latestSession?.fusedScore?.fusedPercentage ?? insights.riskScore.percentage}%
+                </p>
+              </div>
+
+              {/* Domain highlights */}
+              {insights.domainScores.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {insights.domainScores.map((d) => (
+                    <div key={d.domain} className="rounded-2xl bg-surface-container-low p-3 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${
+                          d.level === "strong" ? "bg-success" : d.level === "developing" ? "bg-warning" : "bg-error"
+                        }`} />
+                        <span className="font-label text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant truncate">
+                          {(DOMAIN_LABELS[d.domain as Domain] ?? d.domain).split(" ")[0]}
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-surface-container-high">
+                        <div
+                          className={`h-1.5 rounded-full transition-all ${
+                            d.level === "strong" ? "bg-success" : d.level === "developing" ? "bg-warning" : "bg-error"
+                          }`}
+                          style={{ width: `${Math.round((d.score / 2) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Link
+                href="/insights"
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-full bg-primary/10 text-primary font-label font-semibold text-sm hover:bg-primary/15 active:scale-[0.98] transition-all"
+              >
+                View Full Insights
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </Link>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-3">
+              <Link
+                href="/milestones"
+                className="rounded-2xl bg-surface-container p-4 text-center space-y-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  checklist
+                </span>
+                <p className="font-label text-xs font-semibold text-on-surface">New Assessment</p>
+              </Link>
+              <Link
+                href="/screen"
+                className="rounded-2xl bg-surface-container p-4 text-center space-y-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                <span className="material-symbols-outlined text-secondary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  videocam
+                </span>
+                <p className="font-label text-xs font-semibold text-on-surface">Camera Screen</p>
+              </Link>
+              <Link
+                href="/referrals"
+                className="rounded-2xl bg-surface-container p-4 text-center space-y-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                <span className="material-symbols-outlined text-tertiary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  local_hospital
+                </span>
+                <p className="font-label text-xs font-semibold text-on-surface">Find Support</p>
+              </Link>
+              <Link
+                href="/profile"
+                className="rounded-2xl bg-surface-container p-4 text-center space-y-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                <span className="material-symbols-outlined text-tertiary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  description
+                </span>
+                <p className="font-label text-xs font-semibold text-on-surface">Export Report</p>
+              </Link>
+            </div>
+
+            {/* Next check-in */}
+            {nextCheckInDate && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-primary-fixed/30">
+                <span className="material-symbols-outlined text-primary text-lg">event</span>
+                <p className="font-body text-sm text-on-surface">
+                  Next check-in:{" "}
+                  <span className="font-semibold">
+                    {nextCheckInDate.toLocaleDateString("en-IN", { day: "numeric", month: "long" })}
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {/* Camera screening */}
+            <Link
+              href="/screen"
+              className="flex items-center gap-4 rounded-3xl bg-surface-container botanical-shadow p-5 hover:scale-[1.01] active:scale-[0.99] transition-all"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-secondary-container/40 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-secondary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  videocam
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-label font-semibold uppercase tracking-widest text-secondary">
+                  Vision Screening
+                </span>
+                <h3 className="font-headline font-bold text-base text-on-surface mt-0.5">
+                  Camera-Based Screen
+                </h3>
+                <p className="font-body text-xs text-on-surface-variant mt-0.5">
+                  Auto-detect eye contact, name response &amp; gaze following
+                </p>
+              </div>
+              <span className="material-symbols-outlined text-tertiary">arrow_forward</span>
+            </Link>
+          </section>
+        )}
       </main>
       <BottomNav />
     </>

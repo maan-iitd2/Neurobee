@@ -1,7 +1,7 @@
-const CACHE_NAME = "neurobee-v1";
+const CACHE_NAME = "neurobee-v2";
 
 // Assets to cache immediately on install
-const PRECACHE_ASSETS = ["/", "/milestones", "/insights", "/reflection", "/profile"];
+const PRECACHE_ASSETS = ["/", "/milestones", "/insights", "/profile"];
 
 // Install: precache shell pages
 self.addEventListener("install", (event) => {
@@ -56,7 +56,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Network-first for navigation and page requests
-  if (request.mode === "navigate" || url.pathname.match(/^\/(milestones|insights|reflection|profile)?$/)) {
+  if (request.mode === "navigate" || url.pathname.match(/^\/(milestones|insights|profile|observe|screen|referrals)?$/)) {
     event.respondWith(
       fetch(request)
         .then((response) => {

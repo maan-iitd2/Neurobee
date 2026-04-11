@@ -1,20 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
-import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
 import { SessionTimeline } from "@/components/SessionTimeline";
 
 export default function ProfilePage() {
   const { state, insights, dayCount, sessionCount } = useApp();
-  const { user, logout } = useAuth();
+  const { profile, resetProfile } = useProfile();
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const childName = user?.childName ?? "—";
-  const childAge = user?.childAge ?? 0;
-  const parentName = user?.parentName ?? "—";
-  const email = user?.email ?? "—";
+  const childName = profile?.childName ?? "—";
+  const childAge = profile?.childAge ?? 0;
+  const parentName = profile?.parentName ?? "—";
 
   return (
     <>
@@ -23,7 +24,7 @@ export default function ProfilePage() {
         {/* Hero */}
         <section className="space-y-1">
           <p className="font-label text-primary font-medium tracking-[0.05em] uppercase text-[0.75rem]">
-            Account Management
+            Settings
           </p>
           <h1 className="font-headline font-extrabold text-3xl tracking-tight text-on-background">
             Your Workspace
@@ -147,9 +148,9 @@ export default function ProfilePage() {
           </section>
         )}
 
-        {/* System & Account */}
+        {/* System */}
         <section className="space-y-4">
-          <h2 className="font-headline font-bold text-xl tracking-tight">System &amp; Account</h2>
+          <h2 className="font-headline font-bold text-xl tracking-tight">System</h2>
           <div className="bg-surface-container-lowest botanical-shadow rounded-2xl overflow-hidden border border-outline-variant/10">
             <div className="px-5 py-4 flex items-center justify-between border-b border-surface-container-high/20">
               <div className="flex items-center gap-3">
@@ -158,40 +159,12 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="font-headline font-semibold text-sm">{parentName}</p>
-                  <p className="text-xs text-tertiary">{email}</p>
+                  <p className="text-xs text-tertiary">Parent / Caregiver</p>
                 </div>
               </div>
             </div>
 
-            <div className="px-5 py-4 flex items-center justify-between hover:bg-surface-container-low transition-colors duration-200 border-b border-surface-container-high/20 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center">
-                  <span className="material-symbols-outlined text-on-secondary-container text-[18px]">notifications_active</span>
-                </div>
-                <div>
-                  <p className="font-headline font-semibold text-sm">App Notifications</p>
-                  <p className="text-xs text-tertiary">Manage daily reminders &amp; tips</p>
-                </div>
-              </div>
-              <div className="w-10 h-5 bg-primary/20 rounded-full relative flex items-center px-1">
-                <div className="w-3.5 h-3.5 bg-primary rounded-full ml-auto" />
-              </div>
-            </div>
-
-            <div className="px-5 py-4 flex items-center justify-between hover:bg-surface-container-low transition-colors duration-200 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center">
-                  <span className="material-symbols-outlined text-on-secondary-container text-[18px]">dark_mode</span>
-                </div>
-                <div>
-                  <p className="font-headline font-semibold text-sm">Appearance</p>
-                  <p className="text-xs text-tertiary">Light Mode (System Default)</p>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-outline-variant">chevron_right</span>
-            </div>
-
-            <Link href="/referrals" className="px-5 py-4 flex items-center justify-between hover:bg-surface-container-low transition-colors duration-200 border-t border-surface-container-high/20">
+            <Link href="/referrals" className="px-5 py-4 flex items-center justify-between hover:bg-surface-container-low transition-colors duration-200 border-b border-surface-container-high/20">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center">
                   <span className="material-symbols-outlined text-on-secondary-container text-[18px]">location_on</span>
@@ -224,7 +197,11 @@ export default function ProfilePage() {
               <button
                 onClick={async () => {
                   const { generatePdfReport } = await import("@/lib/pdf");
-                  await generatePdfReport(user, state, insights);
+                  await generatePdfReport(
+                    profile ? { parentName: profile.parentName, childName: profile.childName, childDob: profile.childDob } : null,
+                    state,
+                    insights
+                  );
                 }}
                 className="bg-white text-primary px-6 py-3 rounded-full font-headline font-bold text-sm w-full hover:bg-surface-container-lowest transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
               >
@@ -237,15 +214,40 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* Logout */}
+        {/* Reset App */}
         <section className="py-4 flex flex-col items-center gap-3">
-          <button
-            onClick={logout}
-            className="text-error font-headline font-bold text-sm tracking-tight flex items-center gap-2 px-6 py-2.5 rounded-full hover:bg-error-container/20 transition-colors border border-error/10"
-          >
-            <span className="material-symbols-outlined text-sm">logout</span>
-            Sign Out
-          </button>
+          {showResetConfirm ? (
+            <div className="w-full bg-error-container/20 border border-error/20 rounded-2xl p-5 space-y-3">
+              <p className="font-headline font-bold text-sm text-on-error-container text-center">
+                Are you sure?
+              </p>
+              <p className="text-xs text-on-error-container/70 text-center leading-relaxed">
+                This will erase all assessment data, sessions, and your profile from this device. This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="flex-1 py-2.5 rounded-full border border-outline-variant text-on-surface font-headline font-bold text-sm hover:bg-surface-container transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={resetProfile}
+                  className="flex-1 py-2.5 rounded-full bg-error text-on-error font-headline font-bold text-sm hover:opacity-90 active:scale-95 transition-all"
+                >
+                  Reset Everything
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="text-error font-headline font-bold text-sm tracking-tight flex items-center gap-2 px-6 py-2.5 rounded-full hover:bg-error-container/20 transition-colors border border-error/10"
+            >
+              <span className="material-symbols-outlined text-sm">restart_alt</span>
+              Reset App
+            </button>
+          )}
           <p className="text-[10px] text-tertiary/50 uppercase tracking-widest font-label">
             NeuroBee · All data stored locally on your device
           </p>

@@ -76,18 +76,34 @@ export async function initFaceLandmarker(): Promise<void> {
   _initPromise = (async () => {
     const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
 
-    _landmarker = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: "/mediapipe/face_landmarker.task",
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
+    const sharedOptions = {
+      baseOptions: { modelAssetPath: "/mediapipe/face_landmarker.task" },
+      runningMode: "VIDEO" as const,
       numFaces: 1,
       // Enable blendshapes — the v2 model supports them and they add
       // expressivity data (eye-open, mouth, brow raise) at no extra cost.
       outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: false,
-    });
+    };
+
+    // Try GPU first (faster on supported devices), fall back to CPU.
+    // GPU delegate fails silently on many browsers (no WebGPU, mobile GPUs,
+    // Firefox, Safari) — without the fallback the page shows a misleading
+    // "Check your connection" error and the camera never starts.
+    try {
+      _landmarker = await FaceLandmarker.createFromOptions(vision, {
+        ...sharedOptions,
+        baseOptions: { ...sharedOptions.baseOptions, delegate: "GPU" },
+      });
+      console.info("[NeuroBee/gaze] FaceLandmarker initialised (GPU delegate)");
+    } catch {
+      console.warn("[NeuroBee/gaze] GPU delegate failed — retrying with CPU...");
+      _landmarker = await FaceLandmarker.createFromOptions(vision, {
+        ...sharedOptions,
+        baseOptions: { ...sharedOptions.baseOptions, delegate: "CPU" },
+      });
+      console.info("[NeuroBee/gaze] FaceLandmarker initialised (CPU delegate)");
+    }
   })();
 
   return _initPromise;

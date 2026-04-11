@@ -12,9 +12,9 @@ const NAV_ITEMS = [
   },
   {
     href: "/milestones",
-    label: "Progress",
+    label: "Assess",
     icon: "insights",
-    matchPaths: ["/milestones", "/insights", "/reflection", "/observe", "/screen"],
+    matchPaths: ["/milestones", "/insights", "/observe", "/screen"],
   },
   {
     href: "/profile",
@@ -28,8 +28,6 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    // Mobile: fixed at bottom, full width, with extra padding to avoid Android back/home gesture bars.
-    // Desktop (md): floating dock pill, centered at bottom.
     <nav className="fixed bottom-0 left-0 w-full z-50 md:bottom-8 md:left-1/2 md:w-max md:-translate-x-1/2 md:rounded-full md:border md:border-outline-variant/30 backdrop-blur-2xl bg-surface/90 rounded-t-[28px] botanical-shadow pb-[max(2rem,env(safe-area-inset-bottom))] md:pb-0">
       <div className="flex justify-around items-center px-4 pt-3 pb-2 md:py-2 md:px-6 md:gap-8 max-w-lg mx-auto">
         {NAV_ITEMS.map(({ href, label, icon, matchPaths }) => {

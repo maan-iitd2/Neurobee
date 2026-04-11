@@ -1,10 +1,10 @@
 "use client";
 
-import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
 
 export function TopBar() {
-  const { user } = useAuth();
-  const initial = user ? user.childName.charAt(0).toUpperCase() : "?";
+  const { profile } = useProfile();
+  const initial = profile ? profile.childName.charAt(0).toUpperCase() : "?";
 
   return (
     <header className="w-full top-0 sticky bg-surface-container-low/80 backdrop-blur-xl z-[60]" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -19,19 +19,13 @@ export function TopBar() {
             <span className="text-primary font-headline font-bold tracking-tighter text-base block">
               NeuroBee
             </span>
-            {user && (
+            {profile && (
               <span className="text-tertiary text-[10px] font-label uppercase tracking-widest">
-                {user.parentName}
+                {profile.parentName}
               </span>
             )}
           </div>
         </div>
-        <button
-          className="w-9 h-9 flex items-center justify-center rounded-full text-tertiary hover:bg-surface-container-high transition-colors duration-200"
-          aria-label="Notifications"
-        >
-          <span className="material-symbols-outlined text-[22px]">notifications</span>
-        </button>
       </div>
     </header>
   );

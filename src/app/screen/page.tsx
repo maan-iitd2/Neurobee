@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
-import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
 import { useApp } from "@/context/AppContext";
 import {
   initFaceLandmarker,
@@ -86,9 +86,9 @@ interface TaskScores {
 }
 
 export default function ScreenPage() {
-  const { user } = useAuth();
+  const { profile } = useProfile();
   const { saveVideoScreeningResults } = useApp();
-  const childName = user?.childName ?? "your child";
+  const childName = profile?.childName ?? "your child";
 
   const [screen, setScreen] = useState<Screen>("intro");
   const [taskIndex, setTaskIndex] = useState(0);
@@ -326,7 +326,7 @@ export default function ScreenPage() {
       await initFaceLandmarker();
       landmarkerRef.current = true;
     } catch (e) {
-      setModelError("Could not load face detection model. Check your connection.");
+      setModelError("Could not load face detection model. Open browser DevTools → Console for details.");
       console.error("[NeuroBee/screen] Model load error:", e);
       setModelLoading(false);
       return;
