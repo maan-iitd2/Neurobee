@@ -14,9 +14,8 @@ function getGreeting() {
 }
 
 export default function Home() {
-  const { state, insights, dayCount } = useApp();
+  const { state, insights, dayCount, sessionCount, trend, nextCheckInDate, latestSession } = useApp();
   const { user } = useAuth();
-  const { sessionCount } = state;
 
   const childName = user?.childName ?? "your child";
   const parentName = user?.parentName ?? "";
@@ -45,6 +44,29 @@ export default function Home() {
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
             Time to play.
           </h2>
+          {/* Trend + next check-in */}
+          {(trend || nextCheckInDate) && (
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              {trend && (
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  trend === "improving" ? "bg-success/15 text-success"
+                  : trend === "worsening" ? "bg-error/15 text-error"
+                  : "bg-surface-container text-on-surface-variant"
+                }`}>
+                  <span className="material-symbols-outlined text-xs">
+                    {trend === "improving" ? "trending_down" : trend === "worsening" ? "trending_up" : "trending_flat"}
+                  </span>
+                  {trend === "improving" ? "Improving" : trend === "worsening" ? "Needs attention" : "Stable"}
+                </span>
+              )}
+              {nextCheckInDate && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-fixed text-primary text-[10px] font-bold uppercase tracking-wider">
+                  <span className="material-symbols-outlined text-xs">event</span>
+                  Next check-in {nextCheckInDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                </span>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Insight Preview Card */}
@@ -138,6 +160,23 @@ export default function Home() {
             ))}
           </div>
         </section>
+
+        {/* Camera Screening card */}
+        <Link href="/screen">
+          <section className="bg-primary/8 border border-primary/20 p-5 rounded-xl flex gap-4 items-center botanical-shadow hover:bg-primary/12 transition-all cursor-pointer">
+            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                videocam
+              </span>
+            </div>
+            <div className="space-y-1 min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-widest text-primary font-bold">New · Vision Screening</p>
+              <h3 className="font-headline text-base font-bold text-on-surface">Camera-Based Screen</h3>
+              <p className="text-xs text-on-surface-variant">Auto-detect eye contact, name response &amp; gaze following.</p>
+            </div>
+            <span className="material-symbols-outlined text-primary shrink-0">arrow_forward</span>
+          </section>
+        </Link>
 
         {/* Quick Activity */}
         <section className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant flex gap-4 items-center botanical-shadow">

@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(npm run:*)",
+      "Read(//c/volD/Ideas/Neurobee/**)",
+      "Bash(cmd /c \"npm run build\")",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(xargs grep:*)",
+      "Bash(npm install:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(find C:/volD/Ideas/Neurobee -name *.turbo -o -name .turbopack)",
+      "Read(//c/volD/Ideas/Neurobee/$USERPROFILE/**)",
+      "Read(//c/volD/Ideas/Neurobee/$LOCALAPPDATA/**)",
+      "Bash(find C:/volD/Ideas/Neurobee -name *.turbopack -o -name .turbopack)",
+      "Bash(python3 -c \":*)",
+      "Bash(node -e \":*)",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "WebSearch",
+      "Bash(curl:*)",
+      "Bash(tasklist)",
+      "Bash(node:*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npx next:*)",
+      "Bash(npm --version)",
+      "Bash(ollama --version)",
+      "Bash(python3 -c ':*)",
+      "Bash(python -c ':*)",
+      "Bash(grep -v \"^\\\\s*$\")",
+      "Bash(cd \"C:\\\\\\\\volD\\\\\\\\Ideas\\\\\\\\Neurobee\")",
+      "Bash(npx --prefix \"C:/volD/Ideas/Neurobee\" tsc --noEmit --project \"C:/volD/Ideas/Neurobee/tsconfig.json\")",
+      "mcp__ide__getDiagnostics",
+      "Bash(git:*)"
+    ]
+  }
+}

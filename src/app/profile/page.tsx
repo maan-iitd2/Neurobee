@@ -1,14 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { SessionTimeline } from "@/components/SessionTimeline";
 
 export default function ProfilePage() {
-  const { state, insights, dayCount } = useApp();
+  const { state, insights, dayCount, sessionCount } = useApp();
   const { user, logout } = useAuth();
-  const { sessionCount } = state;
 
   const childName = user?.childName ?? "—";
   const childAge = user?.childAge ?? 0;
@@ -79,6 +80,12 @@ export default function ProfilePage() {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* Session Timeline */}
+        <section className="space-y-4">
+          <h2 className="font-headline font-bold text-xl tracking-tight">Assessment History</h2>
+          <SessionTimeline />
         </section>
 
         {/* Latest Observation Summary */}
@@ -183,6 +190,19 @@ export default function ProfilePage() {
               </div>
               <span className="material-symbols-outlined text-outline-variant">chevron_right</span>
             </div>
+
+            <Link href="/referrals" className="px-5 py-4 flex items-center justify-between hover:bg-surface-container-low transition-colors duration-200 border-t border-surface-container-high/20">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-secondary-container text-[18px]">location_on</span>
+                </div>
+                <div>
+                  <p className="font-headline font-semibold text-sm">Find Support</p>
+                  <p className="text-xs text-tertiary">Referral resources near you</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-outline-variant">chevron_right</span>
+            </Link>
           </div>
         </section>
 
@@ -201,7 +221,13 @@ export default function ProfilePage() {
                   paediatrician or developmental specialist.
                 </p>
               </div>
-              <button className="bg-white text-primary px-6 py-3 rounded-full font-headline font-bold text-sm w-full hover:bg-surface-container-lowest transition-all duration-200 flex items-center justify-center gap-2 active:scale-95">
+              <button
+                onClick={async () => {
+                  const { generatePdfReport } = await import("@/lib/pdf");
+                  await generatePdfReport(user, state, insights);
+                }}
+                className="bg-white text-primary px-6 py-3 rounded-full font-headline font-bold text-sm w-full hover:bg-surface-container-lowest transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
+              >
                 Export Report
                 <span className="material-symbols-outlined text-sm">download</span>
               </button>

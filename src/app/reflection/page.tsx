@@ -7,9 +7,8 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 
 export default function ReflectionPage() {
-  const { state } = useApp();
+  const { state, sessionCount } = useApp();
   const { user } = useAuth();
-  const { sessionCount } = state;
   const childName = user?.childName ?? "your child";
 
   return (

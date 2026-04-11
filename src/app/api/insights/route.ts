@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { QUESTIONS, computeRiskScore } from "@/lib/questions";
+import type { NeuroRisk } from "@/lib/screening-classifier";
 
-// Ollama URL — override via OLLAMA_URL env var for production tunnelling
-const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434/api/chat";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "mistral";
+// LM Studio runs an OpenAI-compatible server on port 1234 by default.
+// Override via LMSTUDIO_URL / LMSTUDIO_MODEL env vars for non-default setups.
+const LMSTUDIO_BASE = process.env.LMSTUDIO_URL ?? "http://localhost:1234";
+const LMSTUDIO_MODEL = process.env.LMSTUDIO_MODEL ?? "google/gemma-4-e4b";
 
 const SYSTEM_PROMPT = `You are NeuroBee's compassionate developmental guidance assistant. You help parents in India understand their child's early developmental progress through gentle, evidence-based insights.
 
@@ -17,72 +19,22 @@ CRITICAL RULES:
 - Keep language simple — parents may not have medical backgrounds
 - Do not exceed 120 words per field
 
+When video frames are provided, briefly describe one concrete behavioural observation you can see — e.g. gaze direction, engagement, posture. Keep this under 40 words. If frames are too dark, blurry, or unclear, say so honestly.
+
 You MUST respond with ONLY valid JSON in exactly this format (no markdown, no explanation outside):
 {
   "reassurance": "A warm, specific 2-3 sentence message about what is going well based on the actual responses",
   "observation": "A gentle 2-3 sentence observation grounded in the specific answers given",
   "normalization": "A 1-2 sentence normalizing message about developmental variation",
-  "guidance": ["First specific actionable tip", "Second specific actionable tip", "Third specific actionable tip"]
+  "guidance": ["First specific actionable tip", "Second specific actionable tip", "Third specific actionable tip"],
+  "visualObservation": "One concrete observation from the video frames, or null if no frames provided"
 }`;
-
-type RiskLevel = "low" | "medium" | "high";
 
 interface RequestBody {
   child: { name: string; age: number };
   answers: Record<string, string>;
-}
-
-function buildFallbackInsights(
-  childName: string,
-  riskLevel: RiskLevel,
-  strengths: string[],
-  developing: string[]
-) {
-  const name = childName;
-
-  const reassurance: Record<RiskLevel, string> = {
-    low: `${name} is showing wonderful developmental responses across the areas observed. The patterns you've described reflect a child who is engaged, curious, and connected to the world around them. You're doing a beautiful job.`,
-    medium: `${name} is showing real strengths in several areas — and every child develops at their own wonderful pace. The areas you've noticed are simply opportunities to provide some extra playful attention and care.`,
-    high: `You're doing something powerful just by paying close attention to ${name}'s development. Early awareness is the most important first step, and you are already advocating beautifully for your child.`,
-  };
-
-  const observation: Record<RiskLevel, string> = {
-    low: strengths.length > 0
-      ? `${name} is showing clear strengths in ${strengths.slice(0, 2).join(" and ")}, which are excellent signs for overall development. Keep weaving these moments of connection into your daily routine.`
-      : `${name}'s responses indicate healthy, age-appropriate development across the areas observed. Continue the wonderful engagement you're already providing.`,
-    medium: developing.length > 0
-      ? `${name} is showing some emerging areas in ${developing.slice(0, 2).join(" and ")} that may benefit from a little extra nurturing attention. These are gentle observations — not causes for alarm.`
-      : `${name}'s responses show a mixed picture that is worth monitoring with support from your paediatrician at the next visit.`,
-    high: `Some responses in the screening suggest ${name} could benefit from a professional developmental assessment. Early support and intervention lead to the very best outcomes, so reaching out to a specialist is a positive and proactive step.`,
-  };
-
-  const normalization =
-    "Developmental timelines vary widely between children. This screening is an observation tool only — not a medical diagnosis. Your paediatrician can provide complete guidance tailored to your child.";
-
-  const guidance: Record<RiskLevel, string[]> = {
-    low: [
-      "Keep up your wonderful daily routines — consistent rhythm supports all areas of development.",
-      "Read together daily and narrate what you see around the house to enrich language and connection.",
-      "Share these positive observations with your paediatrician at the next well-child visit.",
-    ],
-    medium: [
-      "Try 10 minutes of face-to-face floor play daily — follow your child's lead and narrate what they do.",
-      "Ask your paediatrician about a developmental follow-up at your next RBSK camp or well-child visit.",
-      "Reduce background screen time during meals and play to create more space for interaction.",
-    ],
-    high: [
-      "Request a comprehensive developmental assessment at your nearest RBSK health camp or government health centre.",
-      "Consider reaching out to a developmental paediatrician or NIMHANS (Bangalore) for a specialist evaluation.",
-      "Early intervention — speech therapy, occupational therapy — is most effective when started early. Ask your doctor for a referral today.",
-    ],
-  };
-
-  return {
-    reassurance: reassurance[riskLevel],
-    observation: observation[riskLevel],
-    normalization,
-    guidance: guidance[riskLevel],
-  };
+  neuroRisk?: NeuroRisk;
+  keyFrames?: string[]; // base64 JPEG strings, one per screening task
 }
 
 export async function POST(request: Request) {
@@ -93,9 +45,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { child, answers } = body;
+  const { child, answers, neuroRisk, keyFrames } = body;
   if (!child?.name || answers == null) {
-    return NextResponse.json({ error: "Missing required fields: child and answers" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing required fields: child and answers" },
+      { status: 400 }
+    );
   }
 
   const riskScore = computeRiskScore(answers);
@@ -111,12 +66,24 @@ export async function POST(request: Request) {
   const strengths = [...strengthSections];
   const developing = [...developingSections];
 
-  // Build the questionnaire summary for Ollama
+  // Build the questionnaire summary
   const answerLines = QUESTIONS.map((q) => {
     const ans = answers[q.id] ?? "Not answered";
     const flag = q.isCritical ? " [M-CHAT-R critical]" : "";
     return `- ${q.category}${flag}: ${ans}`;
   }).join("\n");
+
+  // Append neuroRisk context if available
+  let neuroContext = "";
+  if (neuroRisk) {
+    neuroContext = `\n\nVideo gaze screening results:
+- Social Communication risk: ${neuroRisk.socialCommunication}
+- Joint Attention risk: ${neuroRisk.jointAttention}
+- Attention Regulation risk: ${neuroRisk.attentionRegulation}
+- Overall gaze risk: ${neuroRisk.overall}
+- Confidence: ${neuroRisk.confidence}
+${neuroRisk.featureFlags.length > 0 ? `- Observed patterns: ${neuroRisk.featureFlags.join("; ")}` : ""}`;
+  }
 
   const userPrompt = `Child: ${child.name}, age ${child.age} year${child.age !== 1 ? "s" : ""}.
 Screening risk level: ${riskScore.level} (total score: ${riskScore.total}/40, critical item failures: ${riskScore.criticalFailures}).
@@ -124,57 +91,98 @@ Strength areas: ${strengths.join(", ") || "none clearly observed"}.
 Areas needing support: ${developing.join(", ") || "none clearly observed"}.
 
 Questionnaire responses:
-${answerLines}
+${answerLines}${neuroContext}
 
 Please generate personalised, compassionate insights for this parent.`;
 
-  // Attempt Ollama call
+  // Build the message content — multimodal when keyFrames are provided
+  const hasFrames = Array.isArray(keyFrames) && keyFrames.length > 0;
+
+  type TextPart = { type: "text"; text: string };
+  type ImagePart = { type: "image_url"; image_url: { url: string } };
+  type ContentPart = TextPart | ImagePart;
+
+  const userContent: ContentPart[] = [{ type: "text", text: userPrompt }];
+
+  if (hasFrames) {
+    userContent.push({ type: "text", text: "\n\nVideo frames captured during the screening session (one per task):" });
+    for (const frame of keyFrames) {
+      userContent.push({
+        type: "image_url",
+        image_url: { url: `data:image/jpeg;base64,${frame}` },
+      });
+    }
+  }
+
   try {
-    const ollamaRes = await fetch(OLLAMA_URL, {
+    const lmRes = await fetch(`${LMSTUDIO_BASE}/v1/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: LMSTUDIO_MODEL,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
+          { role: "user", content: hasFrames ? userContent : userPrompt },
         ],
+        temperature: 0.65,
+        max_tokens: 2500,   // Gemma 4 uses ~600-900 reasoning tokens before output
         stream: false,
-        options: { temperature: 0.65, num_predict: 700 },
       }),
-      signal: AbortSignal.timeout(20_000), // 20 second timeout
+      signal: AbortSignal.timeout(60_000),   // Gemma 4 thinking adds ~10-20s latency
     });
 
-    if (ollamaRes.ok) {
-      const data = await ollamaRes.json();
-      const content: string = data?.message?.content ?? "";
-
-      // Extract JSON from the response (Mistral sometimes wraps it in markdown)
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.reassurance && parsed.guidance) {
-            return NextResponse.json({
-              ...parsed,
-              riskScore,
-              source: "ollama",
-            });
-          }
-        } catch {
-          // JSON parse failed — fall through to rule-based
-        }
-      }
+    if (!lmRes.ok) {
+      console.error(`[NeuroBee] LM Studio returned HTTP ${lmRes.status}`);
+      return NextResponse.json(
+        { error: "lmstudio_error", detail: `LM Studio returned ${lmRes.status}` },
+        { status: 503 }
+      );
     }
-  } catch {
-    // Ollama not running or timed out — silently fall back
-  }
 
-  // Rule-based fallback
-  const fallback = buildFallbackInsights(child.name, riskScore.level, strengths, developing);
-  return NextResponse.json({
-    ...fallback,
-    riskScore,
-    source: "rule-based",
-  });
+    const data = await lmRes.json();
+    const content: string = data?.choices?.[0]?.message?.content ?? "";
+
+    // Extract JSON — model may wrap in markdown fences
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("[NeuroBee] LM Studio response contained no JSON object:", content.slice(0, 200));
+      return NextResponse.json(
+        { error: "lmstudio_parse_error", detail: "No JSON object in response" },
+        { status: 503 }
+      );
+    }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.error("[NeuroBee] Failed to parse LM Studio JSON:", e);
+      return NextResponse.json(
+        { error: "lmstudio_parse_error", detail: "Could not parse response JSON" },
+        { status: 503 }
+      );
+    }
+
+    if (!parsed.reassurance || !parsed.guidance) {
+      console.error("[NeuroBee] LM Studio JSON missing required fields:", Object.keys(parsed));
+      return NextResponse.json(
+        { error: "lmstudio_parse_error", detail: "Response missing required fields" },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json({
+      ...parsed,
+      riskScore,
+      source: "lmstudio-gemma4",
+      hasVisualAnalysis: hasFrames && typeof parsed.visualObservation === "string" && parsed.visualObservation !== "null",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[NeuroBee] LM Studio connection failed:", message);
+    return NextResponse.json(
+      { error: "lmstudio_offline", detail: message },
+      { status: 503 }
+    );
+  }
 }

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NeuroBee — Gemma 4 E4B Fine-Tuning Pipeline</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #21253a;
+    --border: #2e3350;
+    --text: #e8eaf0;
+    --muted: #8b92b0;
+    --primary: #7c9ef8;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --purple: #c084fc;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    padding: 0 0 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #1a1d27 0%, #0d1124 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 48px 36px;
+  }
+  header .eyebrow {
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--primary);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  header h1 {
+    font-size: 2.4rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    color: #fff;
+    line-height: 1.15;
+  }
+  header h1 span { color: var(--primary); }
+  header p {
+    margin-top: 12px;
+    color: var(--muted);
+    max-width: 680px;
+    font-size: 14px;
+  }
+  .badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid;
+  }
+  .badge-blue  { color: var(--primary); border-color: rgba(124,158,248,.3); background: rgba(124,158,248,.08); }
+  .badge-green { color: var(--green);   border-color: rgba(74,222,128,.3);  background: rgba(74,222,128,.08);  }
+  .badge-amber { color: var(--amber);   border-color: rgba(251,191,36,.3);  background: rgba(251,191,36,.08);  }
+
+  /* ── Layout ── */
+  .wrapper { max-width: 960px; margin: 0 auto; padding: 0 48px; }
+
+  /* ── TOC ── */
+  nav {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin: 40px auto;
+    max-width: 960px;
+    margin-left: 48px;
+    margin-right: 48px;
+  }
+  nav h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 14px; }
+  nav ol { padding-left: 20px; }
+  nav li { margin: 6px 0; }
+  nav a { color: var(--primary); text-decoration: none; font-size: 14px; }
+  nav a:hover { text-decoration: underline; }
+
+  /* ── Sections ── */
+  section { margin-top: 56px; }
+  .phase-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  h2 {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -.01em;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 28px 0 10px;
+  }
+  p { color: var(--muted); margin-bottom: 14px; }
+  strong { color: var(--text); }
+  em { color: var(--primary); font-style: normal; font-weight: 600; }
+
+  /* ── Code ── */
+  pre {
+    background: #0a0c14;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 16px 0 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    color: #c9d1e8;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: rgba(124,158,248,.1);
+    color: var(--primary);
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+  pre code { background: none; color: inherit; padding: 0; border-radius: 0; }
+
+  /* Syntax highlight classes */
+  .kw  { color: #c084fc; }
+  .str { color: #86efac; }
+  .cm  { color: #4b5578; font-style: italic; }
+  .num { color: #fbbf24; }
+  .fn  { color: #7dd3fc; }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; margin: 16px 0 24px; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead tr { background: var(--surface2); }
+  th { padding: 12px 16px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 16px; color: var(--muted); border-bottom: 1px solid rgba(46,51,80,.5); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td strong { color: var(--text); }
+  td em { color: var(--green); }
+
+  /* ── Cards ── */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 20px 0 28px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+  }
+  .card .card-num {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--primary);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .card h4 { font-size: .95rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* ── Decision box ── */
+  .decision {
+    background: rgba(124,158,248,.06);
+    border: 1px solid rgba(124,158,248,.2);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 16px 0 24px;
+  }
+  .decision .decision-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    color: var(--primary);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  /* ── Warning ── */
+  .warn {
+    background: rgba(251,191,36,.06);
+    border: 1px solid rgba(251,191,36,.25);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 13.5px;
+    color: var(--amber);
+  }
+  .warn strong { color: var(--amber); }
+
+  /* ── Timeline ── */
+  .timeline { border-left: 2px solid var(--border); padding-left: 28px; margin: 24px 0; }
+  .timeline-item { position: relative; margin-bottom: 28px; }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -37px;
+    top: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg);
+  }
+  .timeline-item .week { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--primary); font-weight: 700; margin-bottom: 4px; }
+  .timeline-item h4 { font-size: .95rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .timeline-item ul { list-style: none; padding: 0; }
+  .timeline-item li { font-size: 13.5px; color: var(--muted); padding: 3px 0; }
+  .timeline-item li::before { content: '→ '; color: var(--primary); }
+
+  /* ── Status chip ── */
+  .chip { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+  .chip-done  { background: rgba(74,222,128,.12);  color: var(--green);  border: 1px solid rgba(74,222,128,.3); }
+  .chip-todo  { background: rgba(251,191,36,.10);  color: var(--amber);  border: 1px solid rgba(251,191,36,.3); }
+  .chip-later { background: rgba(139,146,176,.10); color: var(--muted);  border: 1px solid rgba(139,146,176,.25); }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 80px;
+    border-top: 1px solid var(--border);
+    padding: 28px 48px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  footer a { color: var(--primary); text-decoration: none; }
+
+  @media (max-width: 640px) {
+    header, .wrapper, nav, footer { padding-left: 20px; padding-right: 20px; }
+    nav { margin-left: 20px; margin-right: 20px; }
+    header h1 { font-size: 1.7rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">NeuroBee · AI Pipeline</div>
+  <h1>Gemma 4 E4B<br /><span>Fine-Tuning Pipeline</span></h1>
+  <p>Step-by-step plan to fine-tune the local Gemma 4 model on Indian pediatric neurodevelopmental screening data — producing a GGUF that loads directly into LM Studio with zero cloud dependency.</p>
+  <div class="badges">
+    <span class="badge badge-blue">Unsloth QLoRA</span>
+    <span class="badge badge-green">Google Colab</span>
+    <span class="badge badge-blue">GGUF · LM Studio</span>
+    <span class="badge badge-amber">IAP · RBSK · NIMHANS</span>
+    <span class="badge badge-green">100% Local</span>
+  </div>
+</header>
+
+<nav>
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#phase1">Phase 1 — Dataset Construction</a></li>
+    <li><a href="#phase2">Phase 2 — QLoRA Fine-Tuning (Unsloth + Colab)</a></li>
+    <li><a href="#phase3">Phase 3 — Multimodal Strategy</a></li>
+    <li><a href="#phase4">Phase 4 — GGUF Export for LM Studio</a></li>
+    <li><a href="#phase5">Phase 5 — Evaluation</a></li>
+    <li><a href="#phase6">Phase 6 — Integration into NeuroBee</a></li>
+    <li><a href="#phase7">Phase 7 — Infrastructure &amp; Timeline</a></li>
+    <li><a href="#decisions">Key Decisions Summary</a></li>
+  </ol>
+</nav>
+
+<div class="wrapper">
+
+<!-- ─────────────────────────────────────── PHASE 1 ─ -->
+<section id="phase1">
+  <div class="phase-label">Phase 1</div>
+  <h2>Dataset Construction</h2>
+
+  <p>The training set is fully <strong>synthetic</strong> — no real patient data is ever used. A frontier model (Claude Sonnet or GPT-4o) acts as the "synthetic annotator," generating gold outputs using the exact NeuroBee system prompt from <code>src/app/api/insights/route.ts</code>.</p>
+
+  <h3>Target Size</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Split</th><th>Count</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Train</strong></td><td>850</td><td>~140 examples per risk profile × 6 profiles</td></tr>
+        <tr><td><strong>Validation</strong></td><td>150</td><td>Stratified 15% holdout — used for early stopping</td></tr>
+        <tr><td><strong>Test</strong></td><td>50</td><td>Human-reviewed gold standard — never seen during training</td></tr>
+        <tr><td><em>Total</em></td><td><em>1,050</em></td><td>Quality over quantity — JSON instruction tuning converges fast</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Six Risk Archetypes</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Profile</th><th>Description</th><th>Pattern</th></tr></thead>
+      <tbody>
+        <tr><td><strong>TD-Typical</strong></td><td>Neurotypical, 18–24 mo</td><td>All items Often/Sometimes</td></tr>
+        <tr><td><strong>Mild-Social</strong></td><td>Social comm concern, fine motor/language</td><td>q1–q4: Sometimes/Rarely; rest Often</td></tr>
+        <tr><td><strong>Mild-JA</strong></td><td>Joint attention concern only</td><td>q5–q8: Sometimes/Rarely; rest Often/Sometimes</td></tr>
+        <tr><td><strong>Medium-Mixed</strong></td><td>Multiple moderate concerns</td><td>Several critical items Sometimes/Rarely; rest mixed</td></tr>
+        <tr><td><strong>High-ASD-Pattern</strong></td><td>Classic high-risk pattern</td><td>All critical items Rarely; others Sometimes/Rarely</td></tr>
+        <tr><td><strong>Motor-Sensory</strong></td><td>Motor/sensory outliers, strong social</td><td>q16–q20: Rarely; q1–q8: Often</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Data Format (Unsloth chat template)</h3>
+  <pre><code><span class="cm"># neurobee_train.jsonl — one JSON object per line</span>
+{
+  <span class="str">"conversations"</span>: [
+    { <span class="str">"role"</span>: <span class="str">"system"</span>,    <span class="str">"content"</span>: <span class="str">"&lt;SYSTEM_PROMPT verbatim from route.ts&gt;"</span> },
+    { <span class="str">"role"</span>: <span class="str">"user"</span>,      <span class="str">"content"</span>: <span class="str">"&lt;generated user prompt&gt;"</span> },
+    { <span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: <span class="str">"{\"reassurance\":\"...\",\"observation\":\"...\",\"normalization\":\"...\",\"guidance\":[\"...\",\"...\",\"...\"],\"visualObservation\":null}"</span> }
+  ]
+}</code></pre>
+
+  <h3>Validation Filter (critical)</h3>
+  <pre><code><span class="kw">def</span> <span class="fn">validate_example</span>(output_json):
+    required = {<span class="str">"reassurance"</span>, <span class="str">"observation"</span>, <span class="str">"normalization"</span>, <span class="str">"guidance"</span>, <span class="str">"visualObservation"</span>}
+    <span class="kw">if not</span> required.issubset(output_json.keys()): <span class="kw">return False</span>
+    <span class="kw">if not</span> isinstance(output_json[<span class="str">"guidance"</span>], list) <span class="kw">or</span> len(output_json[<span class="str">"guidance"</span>]) != <span class="num">3</span>: <span class="kw">return False</span>
+    banned = [<span class="str">"has autism"</span>, <span class="str">"diagnos"</span>, <span class="str">"definitely has"</span>, <span class="str">"confirms autism"</span>]
+    text = json.dumps(output_json).lower()
+    <span class="kw">if</span> any(b <span class="kw">in</span> text <span class="kw">for</span> b <span class="kw">in</span> banned): <span class="kw">return False</span>
+    <span class="kw">for</span> field <span class="kw">in</span> [<span class="str">"reassurance"</span>, <span class="str">"observation"</span>, <span class="str">"normalization"</span>]:
+        <span class="kw">if</span> len(output_json[field].split()) > <span class="num">120</span>: <span class="kw">return False</span>
+    <span class="kw">return True</span></code></pre>
+
+  <h3>File Structure</h3>
+  <pre><code>neurobee-finetune/
+├── dataset_builder.py        <span class="cm"># mirrors route.ts prompt logic in Python</span>
+├── synthetic_annotator.py    <span class="cm"># calls Claude/GPT-4o to generate outputs</span>
+├── validate_dataset.py       <span class="cm"># validation filter + RBSK/NIMHANS injection</span>
+├── data/
+│   ├── neurobee_train.jsonl
+│   ├── neurobee_val.jsonl
+│   └── neurobee_test.jsonl
+└── notebooks/
+    └── neurobee_finetune.ipynb</code></pre>
+</section>
+
+<!-- ─────────────────────────────────────── PHASE 2 ─ -->
+<section id="phase2">
+  <div class="phase-label">Phase 2</div>
+  <h2>QLoRA Fine-Tuning — Unsloth + Google Colab</h2>
+
+  <div class="decision">
+    <div class="decision-label">Model ID Decision</div>
+    <p style="margin:0;font-size:13.5px;">Primary: <code>unsloth/gemma-4-4b-it</code> — check HuggingFace first.<br />
+    Fallback: <code>unsloth/gemma-2-4b-it</code> — fully Unsloth-supported, same architecture family.<br />
+    If using fallback: only the <code>MODEL_ID</code> string changes. Everything else is identical.</p>
+  </div>
+
+  <h3>Colab Install</h3>
+  <pre><code><span class="cm"># Cell 1 — install</span>
+!pip install <span class="str">"unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"</span>
+!pip install trl datasets transformers accelerate bitsandbytes</code></pre>
+
+  <h3>Model Loading</h3>
+  <pre><code><span class="kw">from</span> unsloth <span class="kw">import</span> FastLanguageModel
+
+MODEL_ID = <span class="str">"unsloth/gemma-4-4b-it"</span>   <span class="cm"># or "unsloth/gemma-2-4b-it" as fallback</span>
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=MODEL_ID,
+    max_seq_length=<span class="num">2048</span>,   <span class="cm"># system+user+assistant fits comfortably</span>
+    dtype=<span class="kw">None</span>,             <span class="cm"># auto: bf16 on A100, fp16 on T4</span>
+    load_in_4bit=<span class="kw">True</span>,     <span class="cm"># QLoRA — mandatory for T4</span>
+)</code></pre>
+
+  <h3>LoRA Config</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Param</th><th>Value</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><td><strong>rank r</strong></td><td>16</td><td>Goldilocks for JSON instruction tuning; r=8 underfits structured output</td></tr>
+        <tr><td><strong>alpha</strong></td><td>32</td><td>2×r — stable default, doubles effective learning rate</td></tr>
+        <tr><td><strong>dropout</strong></td><td>0.05</td><td>Light dropout prevents overfitting on 850 examples</td></tr>
+        <tr><td><strong>target modules</strong></td><td>q/k/v/o_proj + gate/up/down_proj</td><td>Full attention + MLP coverage for instruction following</td></tr>
+        <tr><td><strong>bias</strong></td><td>none</td><td>No benefit, saves memory</td></tr>
+        <tr><td><strong>gradient checkpointing</strong></td><td>unsloth</td><td>30% VRAM reduction — mandatory for T4</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <pre><code>model = FastLanguageModel.get_peft_model(
+    model,
+    r=<span class="num">16</span>,
+    target_modules=[<span class="str">"q_proj"</span>, <span class="str">"k_proj"</span>, <span class="str">"v_proj"</span>, <span class="str">"o_proj"</span>,
+                    <span class="str">"gate_proj"</span>, <span class="str">"up_proj"</span>, <span class="str">"down_proj"</span>],
+    lora_alpha=<span class="num">32</span>,
+    lora_dropout=<span class="num">0.05</span>,
+    bias=<span class="str">"none"</span>,
+    use_gradient_checkpointing=<span class="str">"unsloth"</span>,
+    random_state=<span class="num">42</span>,
+)</code></pre>
+
+  <h3>Training Config</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Param</th><th>Value (T4)</th><th>Value (A100)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>per_device_train_batch_size</strong></td><td>2</td><td>4–8</td></tr>
+        <tr><td><strong>gradient_accumulation_steps</strong></td><td>8 (eff. batch = 16)</td><td>4</td></tr>
+        <tr><td><strong>num_train_epochs</strong></td><td>8</td><td>8</td></tr>
+        <tr><td><strong>learning_rate</strong></td><td>2e-4</td><td>2e-4</td></tr>
+        <tr><td><strong>lr_scheduler</strong></td><td>cosine</td><td>cosine</td></tr>
+        <tr><td><strong>optim</strong></td><td>adamw_8bit</td><td>adamw_8bit</td></tr>
+        <tr><td><strong>eval_steps / save_steps</strong></td><td>50</td><td>50</td></tr>
+        <tr><td><strong>packing</strong></td><td>False</td><td>False</td></tr>
+        <tr><td><strong>Estimated time</strong></td><td>~2.5–3 hrs</td><td>~40–60 min</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="warn"><strong>T4 Session Timeout:</strong> Colab free sessions time out at 90 min. Set <code>save_steps=50</code> and use <code>trainer.train(resume_from_checkpoint=True)</code> to restart safely from the last checkpoint.</div>
+</section>
+
+<!-- ─────────────────────────────────────── PHASE 3 ─ -->
+<section id="phase3">
+  <div class="phase-label">Phase 3</div>
+  <h2>Multimodal Strategy</h2>
+
+  <p>Gemma 4 E4B is natively multimodal (SigLIP vision encoder + language decoder). <strong>The recommended approach for NeuroBee is text-only fine-tuning.</strong> This is the correct architectural decision, not a compromise:</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-num">Reason 1</div>
+      <h4>Vision encoder is already capable</h4>
+      <p>SigLIP pretraining gives the model the ability to describe gaze, posture, and engagement from video frames without task-specific fine-tuning.</p>
+    </div>
+    <div class="card">
+      <div class="card-num">Reason 2</div>
+      <h4>Frames can't be in training data</h4>
+      <p>Real camera frames vary per child and can't appear in a synthetic training set without actual clinical data. The <code>visualObservation</code> field benefits least from fine-tuning.</p>
+    </div>
+    <div class="card">
+      <div class="card-num">Reason 3</div>
+      <h4>Task-specific knowledge is in the decoder</h4>
+      <p>IAP clinical language, RBSK references, warm Indian English tone, and the JSON output schema live entirely in the language decoder — that's what needs tuning.</p>
+    </div>
+    <div class="card">
+      <div class="card-num">Future Work</div>
+      <h4>Multimodal fine-tuning (Phase 2)</h4>
+      <p>Once text-only tuning is validated, use HuggingFace <code>transformers</code> + PEFT with <code>AutoProcessor</code> for interleaved text+image batches. Requires custom data collation and an A100.</p>
+    </div>
+  </div>
+
+  <p><strong>Implementation:</strong> Training examples have <code>visualObservation: null</code>. During inference, the production system sends real frames — base vision capability handles this correctly without task-specific training.</p>
+</section>
+
+<!-- ─────────────────────────────────────── PHASE 4 ─ -->
+<section id="phase4">
+  <div class="phase-label">Phase 4</div>
+  <h2>GGUF Export for LM Studio</h2>
+
+  <h3>Step 1 — Save merged weights from Colab</h3>
+  <pre><code><span class="cm"># After training completes:</span>
+model.save_pretrained_merged(
+    <span class="str">"neurobee-merged"</span>,
+    tokenizer,
+    save_method=<span class="str">"merged_16bit"</span>,   <span class="cm"># required input for llama.cpp converter</span>
+)
+<span class="cm"># Download neurobee-merged/ to Google Drive or local machine</span></code></pre>
+
+  <h3>Step 2 — Convert to GGUF (on your Windows dev machine)</h3>
+  <pre><code><span class="cm"># One-time setup</span>
+git clone https://github.com/ggerganov/llama.cpp
+cd llama.cpp
+pip install -r requirements.txt
+cmake -B build &amp;&amp; cmake --build build --config Release
+
+<span class="cm"># Convert HuggingFace weights → GGUF (unquantized f16)</span>
+python convert_hf_to_gguf.py \
+    /path/to/neurobee-merged \
+    --outfile neurobee-gemma4-f16.gguf \
+    --outtype f16
+
+<span class="cm"># Quantize to Q4_K_M (recommended for 16 GB RAM machines)</span>
+./build/bin/llama-quantize neurobee-gemma4-f16.gguf neurobee-gemma4-Q4_K_M.gguf Q4_K_M</code></pre>
+
+  <h3>Quantization Comparison</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Quant</th><th>File size</th><th>RAM needed</th><th>Quality</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr><td>Q3_K_M</td><td>~1.7 GB</td><td>~3.2 GB</td><td>Degraded</td><td>Avoid for clinical use</td></tr>
+        <tr><td><em>Q4_K_M</em></td><td>~2.2 GB</td><td>~4.8 GB</td><td>Excellent</td><td><em>Production target</em></td></tr>
+        <tr><td>Q5_K_M</td><td>~2.7 GB</td><td>~5.5 GB</td><td>Marginal gain</td><td>Optional quality reference</td></tr>
+        <tr><td>Q8_0</td><td>~4.2 GB</td><td>~6.0 GB</td><td>Near-lossless</td><td>Evaluation reference only</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────── PHASE 5 ─ -->
+<section id="phase5">
+  <div class="phase-label">Phase 5</div>
+  <h2>Evaluation</h2>
+
+  <h3>Automated Metrics (fast iteration)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Metric</th><th>Check</th><th>Expected improvement</th></tr></thead>
+      <tbody>
+        <tr><td><strong>valid_json</strong></td><td>Output parses as JSON</td><td>~60% base → ~98%+ fine-tuned</td></tr>
+        <tr><td><strong>schema_complete</strong></td><td>All 5 required keys present</td><td>~55% → ~99%</td></tr>
+        <tr><td><strong>no_diagnosis</strong></td><td>No banned diagnosis language</td><td>~80% → ~99%</td></tr>
+        <tr><td><strong>clinical_referral</strong></td><td>RBSK/NIMHANS on high-risk outputs</td><td>~45% → ~90%+</td></tr>
+        <tr><td><strong>field_length_ok</strong></td><td>All fields ≤120 words</td><td>~70% → ~95%</td></tr>
+        <tr><td><strong>indian_english</strong></td><td>Indian English spelling/vocabulary</td><td>~50% → ~85%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Human Evaluation Rubric (1–5 per dimension, 50 test examples)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Dimension</th><th>What reviewers score</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Warmth</strong></td><td>Is the tone compassionate and non-alarmist?</td></tr>
+        <tr><td><strong>Specificity</strong></td><td>Are outputs grounded in the actual questionnaire answers, not generic?</td></tr>
+        <tr><td><strong>Clinical accuracy</strong></td><td>Are observations consistent with the risk level?</td></tr>
+        <tr><td><strong>Actionability</strong></td><td>Are the 3 guidance tips concrete and doable at home?</td></tr>
+        <tr><td><strong>Indian context</strong></td><td>Does language feel appropriate for an Indian parent?</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────── PHASE 6 ─ -->
+<section id="phase6">
+  <div class="phase-label">Phase 6</div>
+  <h2>Integration into NeuroBee</h2>
+
+  <h3>Step 1 — Place the GGUF in LM Studio</h3>
+  <pre><code><span class="cm"># LM Studio models directory (default Windows path):</span>
+C:\Users\&lt;you&gt;\AppData\Roaming\LM-Studio\models\neurobee\
+
+<span class="cm"># Copy your quantized file there:</span>
+neurobee-gemma4-Q4_K_M.gguf</code></pre>
+
+  <p>In LM Studio UI: load the model → set context length to <strong>2048</strong> → enable GPU offloading → Start server on port 1234.</p>
+
+  <h3>Step 2 — One env var change (zero code change)</h3>
+  <pre><code><span class="cm"># .env.local</span>
+LMSTUDIO_URL=http://localhost:1234
+LMSTUDIO_MODEL=neurobee-gemma4-Q4_K_M   <span class="cm"># was: google/gemma-4-e4b</span></code></pre>
+
+  <h3>Step 3 — Simplify the system prompt (optional)</h3>
+  <p>The fine-tuned model has internalized the JSON schema, no-diagnosis rules, and Indian context. The system prompt can be shortened from ~400 tokens to ~60 tokens, reducing latency:</p>
+  <pre><code><span class="cm">// Minimal system prompt for the fine-tuned model:</span>
+<span class="str">"You are NeuroBee's developmental guidance assistant. Respond ONLY with valid JSON: {\"reassurance\": \"...\", \"observation\": \"...\", \"normalization\": \"...\", \"guidance\": [\"...\", \"...\", \"...\"], \"visualObservation\": \"...or null\"}."</span></code></pre>
+</section>
+
+<!-- ─────────────────────────────────────── PHASE 7 ─ -->
+<section id="phase7">
+  <div class="phase-label">Phase 7</div>
+  <h2>Infrastructure &amp; Timeline</h2>
+
+  <h3>GPU Requirements</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>GPU</th><th>VRAM</th><th>Colab tier</th><th>Time estimate</th></tr></thead>
+      <tbody>
+        <tr><td>T4</td><td>16 GB</td><td>Free (90-min sessions)</td><td>~2.5–3 hours (resume from checkpoints)</td></tr>
+        <tr><td><em>A100</em></td><td>40/80 GB</td><td><em>Pro+ (~$50/mo)</em></td><td><em>~40–60 min — recommended</em></td></tr>
+        <tr><td>RTX 3090/4090</td><td>24 GB</td><td>Local machine</td><td>~1–1.5 hours</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>3-Week Execution Timeline</h3>
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="week">Week 1 — Dataset</div>
+      <h4>Build &amp; generate training data</h4>
+      <ul>
+        <li>Days 1–2: Write <code>dataset_builder.py</code> + <code>synthetic_annotator.py</code></li>
+        <li>Day 3: Generate 1,050 raw examples via Claude API (~$2–3 cost)</li>
+        <li>Day 4: Run validation filter; inspect 50 random examples manually</li>
+        <li>Day 5: Create train/val/test splits; human review of 50 test examples</li>
+      </ul>
+    </div>
+    <div class="timeline-item">
+      <div class="week">Week 2 — Training &amp; Export</div>
+      <h4>Fine-tune and convert</h4>
+      <ul>
+        <li>Days 1–2: Open Colab; install Unsloth; run <code>neurobee_finetune.ipynb</code></li>
+        <li>Day 3: Monitor eval_loss; adjust LR if needed; download merged weights</li>
+        <li>Day 4: Run <code>convert_hf_to_gguf.py</code> + <code>llama-quantize</code> on Windows machine</li>
+        <li>Day 5: Load Q4_K_M into LM Studio; run 50 test prompts; score vs baseline</li>
+      </ul>
+    </div>
+    <div class="timeline-item">
+      <div class="week">Week 3 — Evaluation &amp; Rollout</div>
+      <h4>Validate and ship</h4>
+      <ul>
+        <li>Days 1–2: Run human evaluation rubric on test set (5 dimensions × 50 examples)</li>
+        <li>Day 3: If eval passes → update <code>.env.local</code> LMSTUDIO_MODEL; test in app</li>
+        <li>Day 4: Optional — 2nd training pass with eval feedback (active learning)</li>
+        <li>Day 5: Write model card (config, eval results, limitations)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Model ID Fallback Decision Tree</h3>
+  <pre><code>Is google/gemma-4-4b-it on HuggingFace?
+├── Yes → Is unsloth/gemma-4-4b-it available?
+│   ├── Yes → Use FastLanguageModel path (this plan) ✓
+│   └── No  → Use google/gemma-4-4b-it with standard transformers + PEFT QLoRA
+│              (slower; A100 recommended)
+└── No  → Use unsloth/gemma-2-4b-it (fully supported fallback)
+          Update LMSTUDIO_MODEL env var to match new GGUF filename
+          Everything else in this plan is identical</code></pre>
+</section>
+
+<!-- ─────────────────────────────────────── DECISIONS ─ -->
+<section id="decisions">
+  <div class="phase-label">Summary</div>
+  <h2>Key Decisions</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Decision</th><th>Choice</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Training data source</strong></td><td>Synthetic via Claude API + validation filter</td><td>No real clinical data; synthetic is PII-safe</td></tr>
+        <tr><td><strong>Dataset size</strong></td><td>850 train / 150 val / 50 test</td><td>Sufficient for instruction-style JSON output tuning</td></tr>
+        <tr><td><strong>LoRA rank</strong></td><td>16</td><td>Balances capacity and T4 VRAM budget</td></tr>
+        <tr><td><strong>Epochs</strong></td><td>8 with early stopping on eval_loss</td><td>Multiple passes on small dataset</td></tr>
+        <tr><td><strong>Multimodal</strong></td><td>Text-only training</td><td>Vision encoder already capable; decoder needs task-specific tuning</td></tr>
+        <tr><td><strong>Quantization</strong></td><td>Q4_K_M</td><td>Best quality/size/RAM tradeoff for 16 GB dev machines</td></tr>
+        <tr><td><strong>Integration</strong></td><td><code>.env.local</code> LMSTUDIO_MODEL update</td><td>Zero code change required</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Critical Files to Reference</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>File</th><th>Why it matters for fine-tuning</th></tr></thead>
+      <tbody>
+        <tr><td><code>src/app/api/insights/route.ts</code></td><td>System prompt + user prompt construction logic — mirror exactly in <code>dataset_builder.py</code></td></tr>
+        <tr><td><code>src/lib/questions.ts</code></td><td>All 20 M-CHAT-R questions with <code>isCritical</code> flags — must match exactly for correct risk scoring</td></tr>
+        <tr><td><code>src/lib/screening-classifier.ts</code></td><td><code>NeuroRisk</code> type + all <code>RiskLevel</code> values — needed for valid neuroRisk context strings</td></tr>
+        <tr><td><code>src/lib/sessions.ts</code></td><td>Full data shape (<code>VideoScreeningResults</code>, <code>NeuroFeatures</code>) the model receives at inference time</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div><!-- /wrapper -->
+
+<footer>
+  <span>NeuroBee Fine-Tuning Pipeline · Generated 2026-04-11</span>
+  <span>IAP · RBSK · NIMHANS aligned · 100% local · no cloud inference</span>
+</footer>
+
+</body>
+</html>

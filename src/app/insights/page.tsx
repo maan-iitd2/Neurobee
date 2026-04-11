@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { DOMAIN_ICONS } from "@/lib/questions";
 import Link from "next/link";
+import { ObservationPromptBanner } from "@/components/ObservationPromptBanner";
 
 interface AiInsight {
   reassurance: string;
   observation: string;
   normalization: string;
   guidance: string[];
-  source: "ollama" | "rule-based";
+  source: "lmstudio-gemma4";
+  visualObservation?: string;
+  hasVisualAnalysis?: boolean;
 }
 
 const RISK_META = {
@@ -52,32 +55,26 @@ const GUIDANCE_CARDS = [
     description:
       "Encourage eye contact during play by holding toys at eye level before handing them over. Wait for a moment of connection before continuing.",
     icon: "play_circle",
-    accentClass: "bg-primary",
-    href: "/reflection",
   },
   {
     title: "Name Awareness",
     description:
       "Call your child's name warmly and pause after — give time for recognition and response. Celebrate every small reaction.",
     icon: "record_voice_over",
-    accentClass: "bg-primary-container",
-    href: "/reflection",
   },
   {
     title: "Joint Attention",
     description:
       "Point to objects of interest and narrate what you see. Encourage your child to follow your gaze and share the moment with you.",
     icon: "lightbulb",
-    accentClass: "bg-secondary",
-    href: "/reflection",
   },
 ];
 
 export default function InsightsPage() {
-  const { state, insights } = useApp();
+  const { state, insights, sessionCount, latestSession } = useApp();
   const { user } = useAuth();
-  const { sessionCount } = state;
-  const { confidence, answeredCount, domainScores, primaryDeveloping, primaryStrengths, riskScore } = insights;
+  const fusedScore = latestSession?.fusedScore;
+  const { confidence, answeredCount, domainScores, primaryDeveloping, riskScore } = insights;
 
   const childName = user?.childName ?? "your child";
   const childAge = user?.childAge ?? 0;
@@ -86,27 +83,53 @@ export default function InsightsPage() {
 
   const [aiInsight, setAiInsight] = useState<AiInsight | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(false);
+  const [lmStudioRunning, setLmStudioRunning] = useState<boolean | null>(null);
 
-  // Fetch AI insights non-blocking — only when questionnaire data exists
+  // Check LM Studio status once on mount
   useEffect(() => {
+    fetch("/api/lmstudio-status")
+      .then((r) => r.json())
+      .then((d) => setLmStudioRunning(d.running === true))
+      .catch(() => setLmStudioRunning(false));
+  }, []);
+
+  const fetchInsights = useCallback(() => {
     if (!hasData || !state.answers || Object.keys(state.answers).length === 0) return;
 
     setAiLoading(true);
+    setAiError(false);
+
     fetch("/api/insights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         child: { name: childName, age: childAge },
         answers: state.answers,
+        neuroRisk: latestSession?.videoScreeningResults?.neuroRisk,
+        keyFrames: latestSession?.videoScreeningResults?.keyFrames,
       }),
     })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.reassurance) setAiInsight(data as AiInsight);
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
       })
-      .catch(() => {/* silently skip */})
+      .then((data) => {
+        if (data?.reassurance) {
+          setAiInsight(data as AiInsight);
+          setAiError(false);
+        } else {
+          setAiError(true);
+        }
+      })
+      .catch(() => setAiError(true))
       .finally(() => setAiLoading(false));
-  }, [hasData, childName, childAge, state.answers]);
+  }, [hasData, childName, childAge, state.answers, latestSession]);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchInsights();
+  }, [fetchInsights]);
 
   return (
     <>
@@ -215,76 +238,207 @@ export default function InsightsPage() {
           </section>
         )}
 
-        {/* AI / Rule-based Insight Cards */}
+        {/* Observation prompt banner */}
+        {hasData && <ObservationPromptBanner />}
+
+        {/* Fused score card — shown when observation is complete */}
+        {hasData && fusedScore && (
+          <section className={`rounded-2xl p-6 border space-y-4 ${
+            fusedScore.level === "low"
+              ? "bg-success/10 border-success/20"
+              : fusedScore.level === "medium"
+              ? "bg-secondary-container/40 border-secondary/20"
+              : "bg-surface-container border-outline-variant"
+          }`}>
+            <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">
+              Multi-modal fused assessment
+            </p>
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div>
+                <h3 className={`font-headline text-2xl font-extrabold ${
+                  fusedScore.level === "low" ? "text-success"
+                  : fusedScore.level === "medium" ? "text-secondary"
+                  : "text-tertiary"
+                }`}>
+                  {fusedScore.level === "low" ? "Low Concern"
+                    : fusedScore.level === "medium" ? "Medium Concern"
+                    : "High Concern"}
+                </h3>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  M-CHAT-R 60% · Observation 40% · Based on Canvas Dx multi-modal methodology
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-headline text-3xl font-bold text-on-surface">{fusedScore.fusedPercentage}%</p>
+                <p className="text-[10px] font-label text-tertiary uppercase tracking-widest">combined risk</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-surface-container-lowest/60 rounded-xl p-3">
+                <p className="text-[10px] font-label text-tertiary uppercase tracking-widest">M-CHAT-R</p>
+                <p className="font-bold text-on-surface">{fusedScore.mchatPercentage}% risk</p>
+              </div>
+              <div className="bg-surface-container-lowest/60 rounded-xl p-3">
+                <p className="text-[10px] font-label text-tertiary uppercase tracking-widest">Observation</p>
+                <p className="font-bold text-on-surface">{fusedScore.observationScore}% positive</p>
+              </div>
+            </div>
+            <p className="text-[10px] font-label text-tertiary/70 uppercase tracking-widest">
+              Methodology: Wall et al. 2012 · Haber et al. 2018 · npj Digital Medicine 2022
+            </p>
+          </section>
+        )}
+
+        {/* AI Insights Section */}
         {hasData && (
           <section className="space-y-5">
-            {/* AI source badge */}
-            {(aiInsight || aiLoading) && (
+            {/* Ollama status + AI source header */}
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
                 {aiLoading ? (
                   <span className="inline-flex items-center gap-2 text-[10px] font-label uppercase tracking-widest text-tertiary">
                     <span className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin block" />
                     Generating personalised insights…
                   </span>
-                ) : aiInsight?.source === "ollama" ? (
+                ) : aiInsight ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-label uppercase tracking-widest font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary block" />
                     <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
-                    Mistral AI · Local
+                    Gemma 4 · Local
+                  </span>
+                ) : aiError ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 text-[10px] font-label uppercase tracking-widest font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 block" />
+                    AI system not online right now
                   </span>
                 ) : null}
               </div>
-            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Reassurance / Observation */}
-              <div className="bg-surface-container-low p-8 rounded-2xl space-y-5 relative">
-                <div className="absolute top-5 right-6 text-[10px] font-label uppercase tracking-widest text-primary/60 font-semibold">
-                  {answeredCount} responses · confidence: {confidence}
-                </div>
-                <div className="w-11 h-11 bg-surface-container-lowest rounded-full flex items-center justify-center botanical-shadow">
-                  <span className="material-symbols-outlined text-primary">visibility</span>
-                </div>
-                <div className="space-y-3">
-                  <h3 className="font-headline text-xl font-bold tracking-tight">
-                    {aiInsight ? "What We Noticed" : "Early Observation"}
-                  </h3>
-                  <p className="text-base leading-relaxed text-on-surface-variant">
-                    {aiInsight
-                      ? aiInsight.observation
-                      : primaryDeveloping.length > 0
-                      ? `We noticed ${childName} may benefit from additional nurturing in ${primaryDeveloping
-                          .map((d) => d.label.toLowerCase())
-                          .join(" and ")}. Every child grows at their own pace — this is simply a guide.`
-                      : `${childName} is showing encouraging responses across all areas. Keep up the wonderful engagement!`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Reassurance / Normalization */}
-              <div className="bg-surface-container-lowest p-8 rounded-2xl space-y-5 border border-outline-variant/15 botanical-shadow">
-                <div className="w-11 h-11 bg-secondary-container rounded-full flex items-center justify-center">
-                  <span className="material-symbols-outlined text-on-secondary-container">
-                    {aiInsight ? "favorite" : "child_care"}
+              {/* LM Studio status indicator */}
+              {lmStudioRunning !== null && (
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-label uppercase tracking-widest ${lmStudioRunning ? "text-primary" : "text-tertiary"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full block ${lmStudioRunning ? "bg-primary" : "bg-amber-500"}`} />
+                    {lmStudioRunning ? "LM Studio running" : "LM Studio offline"}
                   </span>
+                  {(aiError || !aiInsight) && !aiLoading && (
+                    <button
+                      onClick={fetchInsights}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-outline-variant/30 text-[10px] font-label uppercase tracking-widest text-tertiary hover:text-on-surface hover:border-outline-variant transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">refresh</span>
+                      Retry
+                    </button>
+                  )}
                 </div>
-                <div className="space-y-3">
-                  <h3 className="font-headline text-xl font-bold tracking-tight text-on-surface">
-                    {aiInsight ? "A Note for You" : "Normalization"}
-                  </h3>
-                  <p className="text-base leading-relaxed text-on-surface-variant">
-                    {aiInsight
-                      ? aiInsight.reassurance
-                      : "Many children show similar patterns during development. Every brain grows on its own timeline, and variations in social responsiveness are common and expected in early childhood."}
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* AI normalization row */}
+            {/* AI offline error banner */}
+            {aiError && !aiLoading && (
+              <div className="flex items-start gap-3 bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-4">
+                <span className="material-symbols-outlined text-amber-600 shrink-0 mt-0.5">wifi_off</span>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-on-surface">AI system not online right now</p>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    Gemma 4 runs locally via LM Studio. Open LM Studio, load the <strong>gemma-4-e4b</strong> model, and start the local server on port 1234.
+                  </p>
+                  <p className="text-xs text-tertiary mt-1">Then click Retry above.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Insight cards — only shown when AI is available */}
             {aiInsight && (
-              <div className="bg-tertiary-fixed/20 border border-outline-variant/15 rounded-xl px-6 py-4 flex items-start gap-3">
-                <span className="material-symbols-outlined text-tertiary shrink-0 mt-0.5 text-lg">info</span>
-                <p className="text-sm text-on-surface-variant leading-relaxed">{aiInsight.normalization}</p>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* What We Noticed */}
+                  <div className="bg-surface-container-low p-8 rounded-2xl space-y-5 relative">
+                    <div className="absolute top-5 right-6 text-[10px] font-label uppercase tracking-widest text-primary/60 font-semibold">
+                      {answeredCount} responses · confidence: {confidence}
+                    </div>
+                    <div className="w-11 h-11 bg-surface-container-lowest rounded-full flex items-center justify-center botanical-shadow">
+                      <span className="material-symbols-outlined text-primary">visibility</span>
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="font-headline text-xl font-bold tracking-tight">What We Noticed</h3>
+                      <p className="text-base leading-relaxed text-on-surface-variant">
+                        {aiInsight.observation}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* A Note for You */}
+                  <div className="bg-surface-container-lowest p-8 rounded-2xl space-y-5 border border-outline-variant/15 botanical-shadow">
+                    <div className="w-11 h-11 bg-secondary-container rounded-full flex items-center justify-center">
+                      <span className="material-symbols-outlined text-on-secondary-container">favorite</span>
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="font-headline text-xl font-bold tracking-tight text-on-surface">
+                        A Note for You
+                      </h3>
+                      <p className="text-base leading-relaxed text-on-surface-variant">
+                        {aiInsight.reassurance}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Normalization */}
+                <div className="bg-tertiary-fixed/20 border border-outline-variant/15 rounded-xl px-6 py-4 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-tertiary shrink-0 mt-0.5 text-lg">info</span>
+                  <p className="text-sm text-on-surface-variant leading-relaxed">{aiInsight.normalization}</p>
+                </div>
+
+                {/* Visual observation — only when Gemma analysed frames */}
+                {aiInsight.hasVisualAnalysis && aiInsight.visualObservation && (
+                  <div className="bg-surface-container-low border border-primary/15 rounded-xl px-6 py-4 flex items-start gap-3">
+                    <span
+                      className="material-symbols-outlined text-primary shrink-0 mt-0.5 text-lg"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      videocam
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-label uppercase tracking-widest text-primary font-semibold">
+                        Visual observation · Gemma 4
+                      </p>
+                      <p className="text-sm text-on-surface-variant leading-relaxed">{aiInsight.visualObservation}</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Placeholder cards when AI is loading or offline — static observation */}
+            {!aiInsight && !aiLoading && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-surface-container-low p-8 rounded-2xl space-y-5 relative opacity-60">
+                  <div className="w-11 h-11 bg-surface-container-lowest rounded-full flex items-center justify-center botanical-shadow">
+                    <span className="material-symbols-outlined text-primary">visibility</span>
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="font-headline text-xl font-bold tracking-tight">Early Observation</h3>
+                    <p className="text-base leading-relaxed text-on-surface-variant">
+                      {primaryDeveloping.length > 0
+                        ? `${childName} may benefit from additional nurturing in ${primaryDeveloping
+                            .map((d) => d.label.toLowerCase())
+                            .join(" and ")}. Every child grows at their own pace.`
+                        : `${childName} is showing encouraging responses across all areas. Keep up the wonderful engagement!`}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-surface-container-lowest p-8 rounded-2xl space-y-5 border border-outline-variant/15 opacity-60">
+                  <div className="w-11 h-11 bg-secondary-container rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-on-secondary-container">child_care</span>
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="font-headline text-xl font-bold tracking-tight text-on-surface">Normalization</h3>
+                    <p className="text-base leading-relaxed text-on-surface-variant">
+                      Many children show similar patterns during development. Every brain grows on its own timeline, and variations in social responsiveness are common and expected in early childhood.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </section>
@@ -432,11 +586,20 @@ export default function InsightsPage() {
           </details>
         </section>
 
-        {/* Export CTA */}
-        <div className="flex justify-center pt-2">
+        {/* CTAs */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          {hasData && (
+            <Link
+              href="/referrals"
+              className="inline-flex items-center justify-center gap-2 bg-primary text-on-primary px-8 py-4 rounded-full font-headline font-bold hover:opacity-90 transition-all botanical-shadow"
+            >
+              <span className="material-symbols-outlined">location_on</span>
+              Find Support Near You
+            </Link>
+          )}
           <Link
             href="/profile"
-            className="inline-flex items-center gap-2 bg-on-surface text-surface px-8 py-4 rounded-full font-headline font-bold hover:opacity-90 transition-all botanical-shadow"
+            className="inline-flex items-center justify-center gap-2 bg-on-surface text-surface px-8 py-4 rounded-full font-headline font-bold hover:opacity-90 transition-all botanical-shadow"
           >
             <span className="material-symbols-outlined">file_download</span>
             Export Full Report

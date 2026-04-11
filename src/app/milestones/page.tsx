@@ -61,7 +61,7 @@ export default function MilestonesPage() {
   function advance() {
     if (isLast) {
       saveAnswers(answers);
-      router.push("/insights");
+      router.push("/observe?from=milestones");
       return;
     }
     setIsTransitioning(true);
