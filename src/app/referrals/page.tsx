@@ -5,14 +5,18 @@ import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
+import { useProfile } from "@/context/ProfileContext";
 import {
-  REFERRAL_RESOURCES,
   INDIAN_STATES,
   getReferralsForState,
   TYPE_LABELS,
+  TYPE_LABELS_HI,
+  URGENCY_LABELS,
+  URGENCY_LABELS_HI,
   ReferralResource,
   RiskLevel,
 } from "@/lib/referrals";
+import { useTranslation } from "@/lib/i18n";
 
 const TYPE_COLORS: Record<string, string> = {
   government: "bg-primary-fixed text-primary",
@@ -27,32 +31,36 @@ const URGENCY_COLORS: Record<string, string> = {
   routine: "text-on-surface-variant",
 };
 
-function ReferralCard({ resource }: { resource: ReferralResource }) {
+function ReferralCard({ resource, isHindi }: { resource: ReferralResource; isHindi: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const t = useTranslation();
+
+  const typeLabels = isHindi ? TYPE_LABELS_HI : TYPE_LABELS;
+  const urgencyLabels = isHindi ? URGENCY_LABELS_HI : URGENCY_LABELS;
+  const whatToSay = isHindi ? resource.whatToSay_hi : resource.whatToSay;
+  const documentsToBring = isHindi ? resource.documentsToBring_hi : resource.documentsToBring;
 
   async function handleShare() {
-    const text = `${resource.name}\nPhone: ${resource.phone.join(", ")}\n${resource.address ?? ""}`;
+    const text = `${resource.name}\n${isHindi ? "फोन" : "Phone"}: ${resource.phone.join(", ")}\n${resource.address ?? ""}`;
     if (navigator.share) {
       await navigator.share({ title: resource.name, text }).catch(() => {});
     } else {
       await navigator.clipboard.writeText(text).catch(() => {});
-      alert("Copied to clipboard");
     }
   }
 
   return (
     <div className="rounded-3xl bg-surface-container overflow-hidden">
       <div className="p-5 space-y-3">
-        {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <div className="flex flex-wrap gap-1.5 mb-2">
               <span className={`text-[10px] font-label font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${TYPE_COLORS[resource.type]}`}>
-                {TYPE_LABELS[resource.type]}
+                {typeLabels[resource.type]}
               </span>
               {resource.urgency !== "routine" && (
                 <span className={`text-[10px] font-label font-semibold uppercase tracking-wide ${URGENCY_COLORS[resource.urgency]}`}>
-                  ● {resource.urgency}
+                  ● {urgencyLabels[resource.urgency]}
                 </span>
               )}
             </div>
@@ -63,7 +71,6 @@ function ReferralCard({ resource }: { resource: ReferralResource }) {
           </div>
         </div>
 
-        {/* Phone numbers */}
         <div className="flex flex-wrap gap-2">
           {resource.phone.map((num) => (
             <a
@@ -77,7 +84,6 @@ function ReferralCard({ resource }: { resource: ReferralResource }) {
           ))}
         </div>
 
-        {/* Address */}
         {resource.address && (
           <p className="font-body text-xs text-on-surface-variant flex items-start gap-1.5">
             <span className="material-symbols-outlined text-base flex-shrink-0">location_on</span>
@@ -85,14 +91,12 @@ function ReferralCard({ resource }: { resource: ReferralResource }) {
           </p>
         )}
 
-        {/* Notes */}
         {resource.notes && (
           <p className="font-body text-xs text-on-surface-variant bg-surface-container-high rounded-xl p-3">
             {resource.notes}
           </p>
         )}
 
-        {/* Expand toggle */}
         <button
           onClick={() => setExpanded((e) => !e)}
           className="flex items-center gap-1 text-primary font-label text-xs font-semibold"
@@ -100,24 +104,23 @@ function ReferralCard({ resource }: { resource: ReferralResource }) {
           <span className="material-symbols-outlined text-base">
             {expanded ? "expand_less" : "expand_more"}
           </span>
-          {expanded ? "Hide details" : "What to say & bring"}
+          {expanded ? t("referrals.hide_details") : t("referrals.show_details")}
         </button>
       </div>
 
-      {/* Expandable details */}
       {expanded && (
         <div className="border-t border-outline-variant/20 p-5 space-y-4 bg-surface-container-low">
           <div className="space-y-2">
-            <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">When you call, say:</p>
+            <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">{t("referrals.what_to_say")}</p>
             <p className="font-body text-sm text-on-surface leading-relaxed bg-surface-container rounded-2xl p-4">
-              &ldquo;{resource.whatToSay}&rdquo;
+              &ldquo;{whatToSay}&rdquo;
             </p>
           </div>
-          {resource.documentsToBring.length > 0 && (
+          {documentsToBring.length > 0 && (
             <div className="space-y-2">
-              <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">Documents to bring:</p>
+              <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">{t("referrals.documents_to_bring")}</p>
               <ul className="space-y-1.5">
-                {resource.documentsToBring.map((doc, i) => (
+                {documentsToBring.map((doc, i) => (
                   <li key={i} className="flex items-start gap-2 font-body text-sm text-on-surface">
                     <span className="material-symbols-outlined text-primary text-base flex-shrink-0 mt-0.5">check_circle</span>
                     {doc}
@@ -136,7 +139,7 @@ function ReferralCard({ resource }: { resource: ReferralResource }) {
             className="flex items-center gap-2 text-on-surface-variant font-label text-xs"
           >
             <span className="material-symbols-outlined text-base">share</span>
-            Share with doctor
+            {t("referrals.share_doctor")}
           </button>
         </div>
       )}
@@ -146,6 +149,10 @@ function ReferralCard({ resource }: { resource: ReferralResource }) {
 
 export default function ReferralsPage() {
   const { selectedState, setSelectedState, insights, latestSession } = useApp();
+  const { profile } = useProfile();
+  const t = useTranslation();
+
+  const isHindi = profile?.language === "hi";
   const [showStatePicker, setShowStatePicker] = useState(!selectedState);
 
   const riskLevel: RiskLevel = (latestSession?.fusedScore?.level ?? insights.riskScore.level) as RiskLevel;
@@ -153,20 +160,20 @@ export default function ReferralsPage() {
 
   const PATHWAY_META = {
     high: {
-      label: "Urgent Referral Pathway",
-      desc: "Your assessment suggests high developmental concern. Please contact a specialist within the next 2 weeks.",
+      labelKey: "referrals.pathway.high.label",
+      descKey: "referrals.pathway.high.desc",
       color: "bg-error/10 border-error/20 text-error",
       icon: "priority_high",
     },
     medium: {
-      label: "Monitoring Pathway",
-      desc: "Your assessment suggests some areas worth monitoring. A developmental paediatrician visit is recommended.",
+      labelKey: "referrals.pathway.medium.label",
+      descKey: "referrals.pathway.medium.desc",
       color: "bg-warning/10 border-warning/20 text-warning",
       icon: "schedule",
     },
     low: {
-      label: "Awareness Pathway",
-      desc: "Your assessment is encouraging. Continue monitoring milestones and discuss at your next well-child visit.",
+      labelKey: "referrals.pathway.low.label",
+      descKey: "referrals.pathway.low.desc",
       color: "bg-success/10 border-success/20 text-success",
       icon: "check_circle",
     },
@@ -180,17 +187,14 @@ export default function ReferralsPage() {
         <TopBar />
         <main className="flex-1 flex flex-col px-4 py-6 gap-4 max-w-lg mx-auto w-full">
           <div className="space-y-1">
-            <h1 className="font-display text-2xl font-bold text-on-surface">Find Support</h1>
-            <p className="font-body text-sm text-on-surface-variant">Select your state to see relevant resources.</p>
+            <h1 className="font-display text-2xl font-bold text-on-surface">{t("referrals.title")}</h1>
+            <p className="font-body text-sm text-on-surface-variant">{t("referrals.select_state_desc")}</p>
           </div>
           <div className="space-y-1 pb-24">
             {INDIAN_STATES.map((state) => (
               <button
                 key={state}
-                onClick={() => {
-                  setSelectedState(state);
-                  setShowStatePicker(false);
-                }}
+                onClick={() => { setSelectedState(state); setShowStatePicker(false); }}
                 className="w-full text-left px-4 py-3.5 rounded-2xl bg-surface-container hover:bg-primary-fixed/30 transition-colors font-body text-sm text-on-surface flex items-center justify-between"
               >
                 {state}
@@ -209,10 +213,9 @@ export default function ReferralsPage() {
       <TopBar />
       <main className="flex-1 flex flex-col px-4 py-6 gap-4 max-w-lg mx-auto w-full pb-28">
 
-        {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-on-surface">Find Support</h1>
+            <h1 className="font-display text-2xl font-bold text-on-surface">{t("referrals.title")}</h1>
             <button
               onClick={() => setShowStatePicker(true)}
               className="font-body text-sm text-primary flex items-center gap-1 mt-1"
@@ -231,27 +234,24 @@ export default function ReferralsPage() {
         <div className={`rounded-3xl border p-4 flex items-start gap-3 ${pathway.color}`}>
           <span className="material-symbols-outlined text-xl flex-shrink-0 mt-0.5">{pathway.icon}</span>
           <div>
-            <p className="font-label text-sm font-semibold">{pathway.label}</p>
-            <p className="font-body text-xs mt-1 opacity-80">{pathway.desc}</p>
+            <p className="font-label text-sm font-semibold">{t(pathway.labelKey)}</p>
+            <p className="font-body text-xs mt-1 opacity-80">{t(pathway.descKey)}</p>
           </div>
         </div>
 
         {/* Disclaimer */}
         <div className="rounded-2xl bg-surface-container p-4 flex items-start gap-2">
           <span className="material-symbols-outlined text-on-surface-variant text-base flex-shrink-0 mt-0.5">info</span>
-          <p className="font-body text-xs text-on-surface-variant">
-            Contact details were accurate as of 2024–25. Always verify before visiting. This is not a clinical referral — please also consult your regular paediatrician.
-          </p>
+          <p className="font-body text-xs text-on-surface-variant">{t("referrals.disclaimer")}</p>
         </div>
 
-        {/* Referral cards */}
         <div className="space-y-3">
           {referrals.map((resource) => (
-            <ReferralCard key={resource.id} resource={resource} />
+            <ReferralCard key={resource.id} resource={resource} isHindi={isHindi} />
           ))}
           {referrals.length === 0 && (
             <div className="text-center py-12 text-on-surface-variant font-body text-sm">
-              No resources found for this combination. Try the National resources above or call RBSK helpline 104.
+              {t("referrals.no_results")}
             </div>
           )}
         </div>

@@ -2,32 +2,49 @@
 
 import { useState, FormEvent } from "react";
 import { useProfile } from "@/context/ProfileContext";
+import { useTranslation } from "@/lib/i18n";
+import type { Language } from "@/lib/i18n";
+import Image from "next/image";
 
-const MONTHS = [
+const MONTHS_EN = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
+];
+const MONTHS_HI = [
+  "जनवरी", "फरवरी", "मार्च", "अप्रैल", "मई", "जून",
+  "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर",
 ];
 
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - i);
 
-type Step = "welcome" | "dob";
+type Step = "language" | "welcome" | "dob";
 
 export function OnboardingScreen() {
   const { saveProfile } = useProfile();
-  const [step, setStep] = useState<Step>("welcome");
+  const [step, setStep] = useState<Step>("language");
+  const [lang, setLang] = useState<Language>("en");
   const [error, setError] = useState("");
 
   const [parentName, setParentName] = useState("");
   const [childName, setChildName] = useState("");
-  const [dobMonth, setDobMonth] = useState("");
+  const [dobMonthIndex, setDobMonthIndex] = useState("");
   const [dobYear, setDobYear] = useState("");
+
+  const t = useTranslation(lang);
+
+  const months = lang === "hi" ? MONTHS_HI : MONTHS_EN;
+
+  function handleSelectLanguage(selected: Language) {
+    setLang(selected);
+    setStep("welcome");
+  }
 
   function handleWelcomeNext(e: FormEvent) {
     e.preventDefault();
     setError("");
     if (!parentName.trim() || !childName.trim()) {
-      setError("Please fill in both names.");
+      setError(t("onboarding.error.names"));
       return;
     }
     setStep("dob");
@@ -36,21 +53,24 @@ export function OnboardingScreen() {
   function handleFinish(e: FormEvent) {
     e.preventDefault();
     setError("");
-    if (!dobMonth || !dobYear) {
-      setError("Please select your child's birth month and year.");
+    if (!dobMonthIndex || !dobYear) {
+      setError(t("onboarding.error.dob"));
       return;
     }
-    const m = String(MONTHS.indexOf(dobMonth) + 1).padStart(2, "0");
+    const m = String(parseInt(dobMonthIndex, 10) + 1).padStart(2, "0");
     saveProfile({
       parentName: parentName.trim(),
       childName: childName.trim(),
       childDob: `${dobYear}-${m}`,
+      language: lang,
     });
   }
 
+  const stepIndex = step === "language" ? 0 : step === "welcome" ? 1 : 2;
+
   const inputClass =
     "w-full px-4 py-3.5 rounded-xl bg-surface-container-low border border-outline-variant/50 text-on-surface placeholder-tertiary/60 font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200";
-  const labelClass = "block text-xs font-label uppercase tracking-widest text-tertiary mb-1.5";
+  const labelClass = "block text-caption-caps text-tertiary mb-1.5";
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-surface">
@@ -61,25 +81,32 @@ export function OnboardingScreen() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-2.5 mb-16">
-            <span
-              className="material-symbols-outlined text-primary text-3xl"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              hive
-            </span>
-            <span className="font-headline font-bold text-2xl tracking-tighter text-primary">
+            <div className="relative w-12 h-12">
+              <Image 
+                src="/Logo.png" 
+                alt="NeuroBee Logo" 
+                fill 
+                className="object-contain"
+                sizes="48px"
+                priority
+              />
+            </div>
+            <span className="text-h1 text-primary">
               NeuroBee
             </span>
           </div>
           <div className="max-w-sm space-y-6">
-            <h2 className="font-headline text-4xl font-extrabold text-on-surface leading-tight tracking-tight">
-              Every small step is a{" "}
-              <span className="text-primary italic">milestone</span> in the garden of growth.
+            <h2 className="text-h1 text-4xl">
+              {lang === "hi" ? (
+                <>विकास का हर छोटा कदम एक <span className="text-primary italic">मील का पत्थर</span> है।</>
+              ) : (
+                <>Every small step is a{" "}<span className="text-primary italic">milestone</span> in the garden of growth.</>
+              )}
             </h2>
             <p className="text-on-surface-variant leading-relaxed text-sm opacity-80">
-              A gentle space for parents and caregivers to observe, understand, and celebrate their
-              child&apos;s unique developmental journey — backed by India&apos;s leading health
-              frameworks.
+              {lang === "hi"
+                ? "माता-पिता और देखभालकर्ताओं के लिए एक सौम्य स्थान — बच्चे की विकास यात्रा को समझने और उसका जश्न मनाने के लिए।"
+                : "A gentle space for parents and caregivers to observe, understand, and celebrate their child's unique developmental journey — backed by India's leading health frameworks."}
             </p>
           </div>
         </div>
@@ -87,8 +114,8 @@ export function OnboardingScreen() {
         {/* Frameworks badge */}
         <div className="relative z-10">
           <div className="bg-surface-container-lowest p-5 rounded-2xl botanical-shadow border border-outline-variant/15 space-y-2">
-            <p className="text-[10px] font-label uppercase tracking-widest text-tertiary font-semibold">
-              Aligned with
+            <p className="text-caption-caps text-tertiary">
+              {lang === "hi" ? "इन संस्थानों के अनुरूप" : "Aligned with"}
             </p>
             <ul className="space-y-1.5">
               {[
@@ -115,101 +142,147 @@ export function OnboardingScreen() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-12 min-h-screen">
         {/* Mobile logo */}
         <div className="md:hidden flex items-center gap-2 mb-10">
-          <span
-            className="material-symbols-outlined text-primary text-2xl"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            hive
-          </span>
-          <span className="font-headline font-bold text-xl tracking-tighter text-primary">
+          <div className="relative w-8 h-8">
+            <Image 
+              src="/Logo.png" 
+              alt="NeuroBee Logo" 
+              fill 
+              className="object-contain"
+              sizes="32px"
+              priority
+            />
+          </div>
+          <span className="text-h2 text-primary">
             NeuroBee
           </span>
         </div>
 
         <div className="w-full max-w-md">
-          {/* Step indicator */}
+          {/* Step indicator — 3 steps */}
           <div className="flex items-center gap-2 mb-8">
-            <div className={`h-1 flex-1 rounded-full transition-all duration-500 ${step === "welcome" ? "bg-primary" : "bg-primary"}`} />
-            <div className={`h-1 flex-1 rounded-full transition-all duration-500 ${step === "dob" ? "bg-primary" : "bg-surface-container-high"}`} />
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={`h-1 flex-1 rounded-full transition-all duration-500 ${i <= stepIndex ? "bg-primary" : "bg-surface-container-high"}`}
+              />
+            ))}
           </div>
 
           {/* Error */}
           {error && (
-            <div className="mb-5 flex items-start gap-2 bg-error-container/40 border border-error/20 text-on-error-container rounded-xl px-4 py-3 text-sm">
+            <div className="mb-5 flex items-start gap-2 bg-error-container/40 border border-error/20 text-on-error-container rounded-xl px-4 py-3 text-body">
               <span className="material-symbols-outlined text-error text-lg shrink-0 mt-0.5">error</span>
               {error}
             </div>
           )}
 
-          {step === "welcome" ? (
+          {step === "language" && (
             <>
-              {/* Header */}
-              <div className="mb-8">
-                <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
-                  Welcome to NeuroBee
+              <div className="mb-10 text-center">
+                <h1 className="text-h1 mb-2">
+                  Choose Language
                 </h1>
-                <p className="text-on-surface-variant text-sm mt-1.5">
-                  Tell us a little about you and your child to get started.
+                <p className="text-h2 text-on-surface-variant">
+                  भाषा चुनें
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => handleSelectLanguage("en")}
+                  className="flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-2 border-outline-variant/50 bg-surface-container-low hover:border-primary hover:bg-primary/5 active:scale-[0.97] transition-all duration-200"
+                >
+                  <span className="text-4xl">🇬🇧</span>
+                  <span className="text-h3 text-lg">English</span>
+                </button>
+                <button
+                  onClick={() => handleSelectLanguage("hi")}
+                  className="flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-2 border-outline-variant/50 bg-surface-container-low hover:border-primary hover:bg-primary/5 active:scale-[0.97] transition-all duration-200"
+                >
+                  <span className="text-4xl">🇮🇳</span>
+                  <span className="text-h3 text-lg">हिंदी</span>
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === "welcome" && (
+            <>
+              <div className="mb-8">
+                <h1 className="text-h1">
+                  {t("onboarding.welcome.title")}
+                </h1>
+                <p className="text-body text-on-surface-variant mt-1.5">
+                  {t("onboarding.welcome.subtitle")}
                 </p>
               </div>
 
               <form onSubmit={handleWelcomeNext} className="space-y-5">
                 <div>
-                  <label className={labelClass}>Your Name</label>
+                  <label className={labelClass}>{t("onboarding.your_name")}</label>
                   <input
                     type="text"
                     autoComplete="name"
                     value={parentName}
                     onChange={(e) => setParentName(e.target.value)}
-                    placeholder="Parent or caregiver"
+                    placeholder={t("onboarding.your_name_placeholder")}
                     className={inputClass}
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Child&apos;s Name</label>
+                  <label className={labelClass}>{t("onboarding.child_name")}</label>
                   <input
                     type="text"
                     value={childName}
                     onChange={(e) => setChildName(e.target.value)}
-                    placeholder="e.g. Arya"
+                    placeholder={t("onboarding.child_name_placeholder")}
                     className={inputClass}
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-4 bg-primary-gradient text-on-primary font-headline font-bold rounded-full shadow-lg shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-primary-gradient text-on-primary text-label rounded-full shadow-lg shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  Continue
+                  {t("onboarding.continue")}
                   <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStep("language"); setError(""); }}
+                  className="w-full text-center text-body text-tertiary hover:text-on-surface transition-colors py-2"
+                >
+                  {t("onboarding.back")}
                 </button>
               </form>
             </>
-          ) : (
+          )}
+
+          {step === "dob" && (
             <>
-              {/* Header */}
               <div className="mb-8">
-                <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
-                  When was {childName} born?
+                <h1 className="text-h1">
+                  {t("onboarding.dob.title_prefix")} {childName} {t("onboarding.dob.title_suffix")}
                 </h1>
-                <p className="text-on-surface-variant text-sm mt-1.5">
-                  This helps us tailor milestones to {childName}&apos;s age.
+                <p className="text-body text-on-surface-variant mt-1.5">
+                  {t("onboarding.dob.subtitle_prefix")} {childName}{t("onboarding.dob.subtitle_suffix")}
                 </p>
               </div>
 
               <form onSubmit={handleFinish} className="space-y-5">
                 <div>
-                  <label className={labelClass}>Birth Month &amp; Year</label>
+                  <label className={labelClass}>{t("onboarding.birth_month_year")}</label>
                   <div className="grid grid-cols-2 gap-3">
                     <select
-                      value={dobMonth}
-                      onChange={(e) => setDobMonth(e.target.value)}
+                      value={dobMonthIndex}
+                      onChange={(e) => setDobMonthIndex(e.target.value)}
                       className={`${inputClass} cursor-pointer`}
                     >
-                      <option value="">Month</option>
-                      {MONTHS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
+                      <option value="">{t("onboarding.placeholder.month")}</option>
+                      {months.map((m, i) => (
+                        <option key={i} value={String(i)}>{m}</option>
                       ))}
                     </select>
                     <select
@@ -217,7 +290,7 @@ export function OnboardingScreen() {
                       onChange={(e) => setDobYear(e.target.value)}
                       className={`${inputClass} cursor-pointer`}
                     >
-                      <option value="">Year</option>
+                      <option value="">{t("onboarding.placeholder.year")}</option>
                       {YEARS.map((y) => (
                         <option key={y} value={y}>{y}</option>
                       ))}
@@ -227,26 +300,26 @@ export function OnboardingScreen() {
 
                 <button
                   type="submit"
-                  className="w-full py-4 bg-primary-gradient text-on-primary font-headline font-bold rounded-full shadow-lg shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-primary-gradient text-on-primary text-label rounded-full shadow-lg shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  Get Started
+                  {t("onboarding.get_started")}
                   <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => { setStep("welcome"); setError(""); }}
-                  className="w-full text-center text-sm text-tertiary hover:text-on-surface transition-colors py-2"
+                  className="w-full text-center text-body text-tertiary hover:text-on-surface transition-colors py-2"
                 >
-                  ← Back
+                  {t("onboarding.back")}
                 </button>
               </form>
             </>
           )}
 
           {/* Disclaimer */}
-          <p className="mt-8 text-[11px] text-tertiary/60 text-center leading-relaxed">
-            All data is stored locally on your device. NeuroBee is a parent observation tool — not a clinical diagnosis.
+          <p className="mt-8 text-body-sm text-[11px] text-tertiary/60 text-center">
+            {t("onboarding.disclaimer")}
           </p>
         </div>
       </div>

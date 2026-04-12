@@ -113,6 +113,7 @@ export function disposeFaceLandmarker(): void {
   _landmarker?.close();
   _landmarker = null;
   _initPromise = null;
+  _lastTimestamp = -1;
 }
 
 // ── Landmark helpers ──────────────────────────────────────────────────────────
@@ -206,6 +207,10 @@ const _blank: GazeFrame = {
   rightEAR: -1,
 };
 
+// Track last timestamp — detectForVideo REQUIRES monotonically increasing values.
+// Passing the same or a lower timestamp causes the XNNPACK delegate to throw.
+let _lastTimestamp = -1;
+
 /**
  * Process one video frame. Exposed as async so the call-site interface is
  * uniform with other potential backends. MediaPipe Tasks Vision is internally
@@ -214,19 +219,30 @@ const _blank: GazeFrame = {
 export async function processFrame(videoEl: HTMLVideoElement): Promise<GazeFrame> {
   if (!_landmarker || videoEl.readyState < 2) return { ..._blank };
 
-  const result = _landmarker.detectForVideo(videoEl, performance.now());
-  const lm = result.faceLandmarks?.[0];
-  if (!lm || lm.length === 0) return { ..._blank };
+  // Ensure strictly increasing timestamps
+  let ts = performance.now();
+  if (ts <= _lastTimestamp) ts = _lastTimestamp + 1;
+  _lastTimestamp = ts;
 
-  const gaze    = computeGazeVector(lm);
-  const hasIris = lm.length >= 478;
+  try {
+    const result = _landmarker.detectForVideo(videoEl, ts);
+    const lm = result.faceLandmarks?.[0];
+    if (!lm || lm.length === 0) return { ..._blank };
 
-  return {
-    gaze,
-    lookingAtCamera: isLookingAtCamera(gaze),
-    headTurn:  computeHeadTurn(lm),
-    faceDetected: true,
-    leftEAR:  hasIris ? computeEAR(lm, 159, 145, 33,  133) : -1,
-    rightEAR: hasIris ? computeEAR(lm, 386, 374, 263, 362) : -1,
-  };
+    const gaze    = computeGazeVector(lm);
+    const hasIris = lm.length >= 478;
+
+    return {
+      gaze,
+      lookingAtCamera: isLookingAtCamera(gaze),
+      headTurn:  computeHeadTurn(lm),
+      faceDetected: true,
+      leftEAR:  hasIris ? computeEAR(lm, 159, 145, 33,  133) : -1,
+      rightEAR: hasIris ? computeEAR(lm, 386, 374, 263, 362) : -1,
+    };
+  } catch (e) {
+    // Don't crash the RAF loop on a single bad frame — just skip it
+    console.warn("[NeuroBee/gaze] Frame processing error:", e);
+    return { ..._blank };
+  }
 }

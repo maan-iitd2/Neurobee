@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { getStoredItem, setStoredItem, migrateAppState } from "@/lib/storage";
 import { QUESTIONS, Domain, DOMAIN_LABELS, computeRiskScore, RiskScore } from "@/lib/questions";
 
@@ -202,37 +202,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, selectedState }));
   }, []);
 
-  const dayCount = Math.max(
-    1,
-    Math.floor(
-      (Date.now() - new Date(state.journeyStartDate).getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1
-  );
+  const contextValue = useMemo(() => {
+    const dayCount = Math.max(
+      1,
+      Math.floor(
+        // eslint-disable-next-line react-hooks/purity
+        (Date.now() - new Date(state.journeyStartDate).getTime()) / (1000 * 60 * 60 * 24)
+      ) + 1
+    );
+    const insights = computeInsights(state.answers);
+    const latestSession = getLatestSession(state.sessions);
+    const trend = getTrend(state.sessions);
+    const nextCheckInDate = latestSession ? getNextCheckInDate(latestSession) : null;
+    const sessionCount = state.sessions.length;
 
-  const insights = computeInsights(state.answers);
-  const latestSession = getLatestSession(state.sessions);
-  const trend = getTrend(state.sessions);
-  const nextCheckInDate = latestSession ? getNextCheckInDate(latestSession) : null;
-  const sessionCount = state.sessions.length;
+    return {
+      state,
+      insights,
+      saveAnswers,
+      setMicroInsight,
+      dayCount,
+      sessionCount,
+      saveObservationAnswers,
+      saveVideoScreeningResults,
+      latestSession,
+      trend,
+      nextCheckInDate,
+      selectedState: state.selectedState,
+      setSelectedState,
+    };
+  }, [state, saveAnswers, setMicroInsight, saveObservationAnswers, saveVideoScreeningResults, setSelectedState]);
 
   return (
-    <AppContext.Provider
-      value={{
-        state,
-        insights,
-        saveAnswers,
-        setMicroInsight,
-        dayCount,
-        sessionCount,
-        saveObservationAnswers,
-        saveVideoScreeningResults,
-        latestSession,
-        trend,
-        nextCheckInDate,
-        selectedState: state.selectedState,
-        setSelectedState,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

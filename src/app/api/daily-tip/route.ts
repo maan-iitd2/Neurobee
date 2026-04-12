@@ -27,6 +27,7 @@ interface RequestBody {
   riskLevel?: string;
   strengths?: string[];
   developing?: string[];
+  language?: "en" | "hi";
 }
 
 export async function POST(request: Request) {
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { childName, childAgeMonths, riskLevel, strengths, developing } = body;
+  const { childName, childAgeMonths, riskLevel, strengths, developing, language } = body;
   if (!childName || childAgeMonths == null) {
     return NextResponse.json({ error: "Missing childName or childAgeMonths" }, { status: 400 });
   }
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
     "Generate a fresh, unique daily activity tip for this parent.",
   ].filter(Boolean).join("\n");
 
+  const langInstruction = language === "hi"
+    ? "LANGUAGE INSTRUCTION: You MUST respond ONLY in Hindi (Devanagari script). The title, description, and all text in your JSON must be in Hindi. Do not use English except for the icon and domain field values."
+    : "LANGUAGE INSTRUCTION: Respond in English.";
+  const systemWithLang = `${langInstruction}\n\n${SYSTEM_PROMPT}`;
+
   try {
     const res = await fetch(`${LMSTUDIO_BASE}/v1/chat/completions`, {
       method: "POST",
@@ -64,7 +70,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: LMSTUDIO_MODEL,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemWithLang },
           { role: "user", content: context },
         ],
         temperature: 0.8,

@@ -33,7 +33,8 @@
       "Bash(cd \"C:\\\\\\\\volD\\\\\\\\Ideas\\\\\\\\Neurobee\")",
       "Bash(npx --prefix \"C:/volD/Ideas/Neurobee\" tsc --noEmit --project \"C:/volD/Ideas/Neurobee/tsconfig.json\")",
       "mcp__ide__getDiagnostics",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

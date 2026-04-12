@@ -35,6 +35,7 @@ interface RequestBody {
   answers: Record<string, string>;
   neuroRisk?: NeuroRisk;
   keyFrames?: string[]; // base64 JPEG strings, one per screening task
+  language?: "en" | "hi";
 }
 
 export async function POST(request: Request) {
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { child, answers, neuroRisk, keyFrames } = body;
+  const { child, answers, neuroRisk, keyFrames, language } = body;
   if (!child?.name || answers == null) {
     return NextResponse.json(
       { error: "Missing required fields: child and answers" },
@@ -114,6 +115,11 @@ Please generate personalised, compassionate insights for this parent.`;
     }
   }
 
+  const langInstruction = language === "hi"
+    ? "LANGUAGE INSTRUCTION: You MUST respond ONLY in Hindi (Devanagari script). All text fields in your JSON response must be written in Hindi. Do not use English words except for proper nouns (M-CHAT-R, RBSK, NIMHANS, AIIMS, IAP)."
+    : "LANGUAGE INSTRUCTION: Respond in English.";
+  const systemPromptWithLang = `${langInstruction}\n\n${SYSTEM_PROMPT}`;
+
   try {
     const lmRes = await fetch(`${LMSTUDIO_BASE}/v1/chat/completions`, {
       method: "POST",
@@ -121,7 +127,7 @@ Please generate personalised, compassionate insights for this parent.`;
       body: JSON.stringify({
         model: LMSTUDIO_MODEL,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPromptWithLang },
           { role: "user", content: hasFrames ? userContent : userPrompt },
         ],
         temperature: 0.65,

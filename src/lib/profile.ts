@@ -9,6 +9,7 @@ export interface Profile {
   parentName: string;
   childName: string;
   childDob: string; // YYYY-MM (day not needed)
+  language: "en" | "hi";
 }
 
 const PROFILE_KEY = "neurobee_profile";

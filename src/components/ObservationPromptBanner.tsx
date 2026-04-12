@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
+import { useTranslation } from "@/lib/i18n";
 
 export function ObservationPromptBanner() {
   const { latestSession, state } = useApp();
+  const t = useTranslation();
 
   // Only show if: questionnaire done AND latest session has no observation answers
   if (!state.hasCompletedQuestionnaire) return null;
@@ -17,17 +19,16 @@ export function ObservationPromptBanner() {
       </span>
       <div className="flex-1 space-y-2">
         <p className="font-label text-sm font-semibold text-amber-900">
-          Complete your multi-modal assessment
+          {t("insights.obs_prompt.title")}
         </p>
         <p className="font-body text-xs text-amber-700 leading-relaxed">
-          Add a 30-minute guided behavioural observation to get a fused risk score —
-          more accurate than the questionnaire alone, based on Canvas Dx research methodology.
+          {t("insights.obs_prompt.desc")}
         </p>
         <Link
           href="/observe?from=milestones"
           className="inline-flex items-center gap-1.5 font-label text-sm font-semibold text-amber-800 underline"
         >
-          Start observation
+          {t("insights.obs_prompt.start")}
           <span className="material-symbols-outlined text-base">arrow_forward</span>
         </Link>
       </div>

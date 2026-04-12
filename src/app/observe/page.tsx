@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
-import { OBSERVATION_SCENARIOS, ObservationScenario } from "@/lib/observations";
+import { useProfile } from "@/context/ProfileContext";
+import { OBSERVATION_SCENARIOS, OBSERVATION_SCENARIOS_HI } from "@/lib/observations";
+import { useTranslation } from "@/lib/i18n";
 
 type Screen = "intro" | "scenario" | "results";
 
@@ -14,16 +16,21 @@ function ObservePageInner() {
   const searchParams = useSearchParams();
   const fromMilestones = searchParams.get("from") === "milestones";
   const { saveObservationAnswers, latestSession } = useApp();
+  const { profile } = useProfile();
+  const t = useTranslation();
+
+  const isHindi = profile?.language === "hi";
+  const scenarios = isHindi ? OBSERVATION_SCENARIOS_HI : OBSERVATION_SCENARIOS;
 
   const [screen, setScreen] = useState<Screen>(fromMilestones ? "scenario" : "intro");
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
 
-  const scenario = OBSERVATION_SCENARIOS[scenarioIndex];
-  const isLastScenario = scenarioIndex === OBSERVATION_SCENARIOS.length - 1;
+  const scenario = scenarios[scenarioIndex];
+  const isLastScenario = scenarioIndex === scenarios.length - 1;
 
-  // Count positive observations for results screen
+  // Count positive observations for results screen (always use EN scenarios for scoring)
   const positiveCount = Object.values(answers).filter(Boolean).length;
   const totalNonReversed = OBSERVATION_SCENARIOS.flatMap((s) =>
     s.items.filter((i) => !i.reversed)
@@ -42,7 +49,6 @@ function ObservePageInner() {
       setScreen("results");
     } else {
       setScenarioIndex((i) => i + 1);
-      // scroll to top of scenario
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
@@ -51,6 +57,13 @@ function ObservePageInner() {
     if (scenarioIndex > 0) setScenarioIndex((i) => i - 1);
     else if (screen === "scenario") setScreen("intro");
   }
+
+  const introTips = [
+    { icon: "schedule", key: "observe.intro.tip1" },
+    { icon: "home", key: "observe.intro.tip2" },
+    { icon: "checklist", key: "observe.intro.tip3" },
+    { icon: "local_hospital", key: "observe.intro.tip4" },
+  ];
 
   // ── Intro screen ────────────────────────────────────────────────────────
   if (screen === "intro") {
@@ -62,26 +75,19 @@ function ObservePageInner() {
             <span className="material-symbols-outlined text-primary text-4xl">visibility</span>
           </div>
           <div className="text-center space-y-3">
-            <h1 className="font-display text-2xl font-bold text-on-surface">
-              Behavioural Observation
+            <h1 className="text-h1">
+              {t("observe.title")}
             </h1>
-            <p className="font-body text-on-surface-variant text-sm leading-relaxed">
-              This 6-scenario guided observation takes 30–45 minutes total and lets you observe
-              your child's behaviour in natural play. Your observations are combined with the
-              M-CHAT-R questionnaire for a more accurate picture.
+            <p className="text-body">
+              {t("observe.intro.desc")}
             </p>
           </div>
 
           <div className="w-full space-y-3">
-            {[
-              { icon: "schedule", text: "Find a time when your child is calm and well-rested" },
-              { icon: "home", text: "Use your normal home environment — no special setup needed" },
-              { icon: "checklist", text: "Tick what you observe — there are no right or wrong answers" },
-              { icon: "local_hospital", text: "This is not a diagnosis — share results with your paediatrician" },
-            ].map(({ icon, text }) => (
+            {introTips.map(({ icon, key }) => (
               <div key={icon} className="flex items-start gap-3 p-3 rounded-2xl bg-surface-container">
                 <span className="material-symbols-outlined text-primary text-xl mt-0.5">{icon}</span>
-                <p className="font-body text-sm text-on-surface-variant">{text}</p>
+                <p className="text-body">{t(key)}</p>
               </div>
             ))}
           </div>
@@ -90,13 +96,13 @@ function ObservePageInner() {
             onClick={() => setScreen("scenario")}
             className="w-full py-4 rounded-2xl bg-primary text-on-primary font-label font-semibold text-base"
           >
-            Begin Observation
+            {t("observe.begin")}
           </button>
           <button
             onClick={() => router.back()}
             className="text-sm text-on-surface-variant underline"
           >
-            Do this later
+            {t("observe.skip_intro")}
           </button>
         </main>
         <BottomNav />
@@ -117,18 +123,18 @@ function ObservePageInner() {
             <div className="w-16 h-16 rounded-full bg-success/15 flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-success text-4xl">task_alt</span>
             </div>
-            <h1 className="font-display text-2xl font-bold text-on-surface">Observation Complete</h1>
-            <p className="font-body text-sm text-on-surface-variant">
-              You observed {positiveCount} of {totalNonReversed} positive behaviours.
+            <h1 className="text-h1">{t("observe.results.title")}</h1>
+            <p className="text-body">
+              {t("observe.results.positive_prefix")}{positiveCount} / {totalNonReversed} {t("observe.results.positive_suffix")}
             </p>
           </div>
 
           {/* Observation score */}
           <div className="rounded-3xl bg-surface-container p-5 space-y-3">
-            <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">Observation Score</p>
+            <p className="text-caption-caps">{t("observe.results.title")}</p>
             <div className="flex items-end gap-2">
               <span className="font-display text-4xl font-bold text-primary">{obsScore}</span>
-              <span className="font-body text-on-surface-variant mb-1">/100</span>
+              <span className="text-body mb-1">/100</span>
             </div>
             <div className="w-full h-2 rounded-full bg-surface-container-high">
               <div
@@ -136,9 +142,6 @@ function ObservePageInner() {
                 style={{ width: `${obsScore}%` }}
               />
             </div>
-            <p className="font-body text-xs text-on-surface-variant">
-              Higher score = more positive behaviours observed across all 6 domains.
-            </p>
           </div>
 
           {/* Fused score (if available) */}
@@ -150,8 +153,8 @@ function ObservePageInner() {
                 ? "bg-warning/10"
                 : "bg-error/10"
             }`}>
-              <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">
-                Fused Assessment (M-CHAT-R 60% + Observation 40%)
+              <p className="text-caption-caps">
+                {t("insights.fused.tag")}
               </p>
               <div className="flex items-center gap-3">
                 <span className={`font-display text-3xl font-bold ${
@@ -159,27 +162,31 @@ function ObservePageInner() {
                   : fusedScore.level === "medium" ? "text-warning"
                   : "text-error"
                 }`}>
-                  {fusedScore.level === "low" ? "Low Concern" : fusedScore.level === "medium" ? "Medium Concern" : "High Concern"}
+                  {fusedScore.level === "low"
+                    ? t("insights.fused.low")
+                    : fusedScore.level === "medium"
+                    ? t("insights.fused.medium")
+                    : t("insights.fused.high")}
                 </span>
               </div>
-              <p className="font-body text-xs text-on-surface-variant">
-                Combined risk score: {fusedScore.fusedPercentage}% · M-CHAT-R: {fusedScore.mchatPercentage}%
+              <p className="text-body-sm">
+                {t("insights.fused.combined")}: {fusedScore.fusedPercentage}% · {t("insights.fused.mchat")}: {fusedScore.mchatPercentage}%
               </p>
             </div>
           )}
 
-          {/* Domain breakdown */}
+          {/* Domain breakdown using the active language scenarios */}
           <div className="rounded-3xl bg-surface-container p-5 space-y-4">
-            <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">By Domain</p>
-            {OBSERVATION_SCENARIOS.map((s) => {
+            <p className="text-caption-caps">{t("insights.dev_areas")}</p>
+            {scenarios.map((s) => {
               const positiveItems = s.items.filter((i) => !i.reversed && answers[i.id]);
               const totalItems = s.items.filter((i) => !i.reversed).length;
               const pct = Math.round((positiveItems.length / totalItems) * 100);
               return (
                 <div key={s.id} className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <p className="font-body text-sm text-on-surface">{s.title}</p>
-                    <p className="font-label text-xs text-on-surface-variant">{positiveItems.length}/{totalItems}</p>
+                    <p className="text-body text-on-surface">{s.title}</p>
+                    <p className="text-caption-caps text-on-surface-variant">{positiveItems.length}/{totalItems}</p>
                   </div>
                   <div className="w-full h-1.5 rounded-full bg-surface-container-high">
                     <div
@@ -197,13 +204,13 @@ function ObservePageInner() {
               onClick={() => router.push("/insights")}
               className="w-full py-4 rounded-2xl bg-primary text-on-primary font-label font-semibold text-base"
             >
-              View Full Insights
+              {t("observe.results.view_insights")}
             </button>
             <button
               onClick={() => router.push("/referrals")}
               className="w-full py-4 rounded-2xl border border-outline-variant text-on-surface font-label font-semibold text-base"
             >
-              Find Support Near You
+              {t("insights.cta.find_support")}
             </button>
           </div>
         </main>
@@ -221,13 +228,13 @@ function ObservePageInner() {
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant">
-              Scenario {scenarioIndex + 1} of {OBSERVATION_SCENARIOS.length}
+            <p className="text-caption-caps text-on-surface-variant">
+              {t("observe.scenario_prefix")} {scenarioIndex + 1} {t("observe.scenario_of")} {scenarios.length}
             </p>
-            <p className="font-label text-xs text-primary font-semibold">{scenario.title}</p>
+            <p className="text-caption-caps text-primary">{scenario.title}</p>
           </div>
           <div className="flex gap-1">
-            {OBSERVATION_SCENARIOS.map((_, i) => (
+            {scenarios.map((_, i) => (
               <div
                 key={i}
                 className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
@@ -242,24 +249,25 @@ function ObservePageInner() {
         <div className="rounded-3xl bg-primary-fixed/30 border border-primary/20 p-5 space-y-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-xl">play_circle</span>
-            <p className="font-label text-sm font-semibold text-primary uppercase tracking-wide">Instructions</p>
+            <p className="text-label text-primary uppercase tracking-wide">{t("observe.title")}</p>
           </div>
-          <p className="font-body text-sm text-on-surface leading-relaxed">{scenario.instruction}</p>
+          <p className="text-body text-on-surface">{scenario.instruction}</p>
           <div className="flex items-start gap-2 pt-1 border-t border-primary/10">
             <span className="material-symbols-outlined text-on-surface-variant text-base mt-0.5">info</span>
-            <p className="font-body text-xs text-on-surface-variant">{scenario.setupNote}</p>
+            <p className="text-body-sm">
+              <span className="font-semibold">{t("observe.setup_note")}</span> {scenario.setupNote}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-on-surface-variant text-base">schedule</span>
-            <p className="font-body text-xs text-on-surface-variant">{scenario.duration}</p>
+            <p className="text-body-sm">
+              <span className="font-semibold">{t("observe.duration")}</span> {scenario.duration}
+            </p>
           </div>
         </div>
 
         {/* Observation checklist */}
         <div className="space-y-2">
-          <p className="font-label text-xs uppercase tracking-widest text-on-surface-variant px-1">
-            What did you observe?
-          </p>
           {scenario.items.map((item) => {
             const checked = answers[item.id] ?? false;
             const isReversed = item.reversed;
@@ -287,12 +295,9 @@ function ObservePageInner() {
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="font-body text-sm text-on-surface leading-snug">{item.text}</p>
+                  <p className="text-body text-on-surface leading-snug">{item.text}</p>
                   {item.isCritical && !isReversed && (
-                    <p className="font-label text-[10px] text-primary mt-1 uppercase tracking-wide">★ Key indicator</p>
-                  )}
-                  {isReversed && (
-                    <p className="font-label text-[10px] text-on-surface-variant mt-1">Note: checking this indicates a concern</p>
+                    <p className="text-caption-caps text-primary mt-1">★ {t("milestones.key_indicator")}</p>
                   )}
                 </div>
               </button>
@@ -308,14 +313,14 @@ function ObservePageInner() {
             onClick={handlePrevScenario}
             className="px-5 py-3.5 rounded-2xl border border-outline-variant text-on-surface font-label font-semibold text-sm"
           >
-            Back
+            {t("observe.back")}
           </button>
         )}
         <button
           onClick={handleNextScenario}
           className="flex-1 py-3.5 rounded-2xl bg-primary text-on-primary font-label font-semibold text-base"
         >
-          {isLastScenario ? "See Results" : "Next Scenario"}
+          {isLastScenario ? t("observe.finish") : t("observe.next")}
         </button>
       </div>
     </div>

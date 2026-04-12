@@ -14,6 +14,7 @@ import {
 import { extractFeatures, type NeuroFeatures } from "@/lib/screening-features";
 import { classifyNeuroRisk, type NeuroRisk, type RiskLevel } from "@/lib/screening-classifier";
 import Link from "next/link";
+import { useTranslation } from "@/lib/i18n";
 
 // ── Task config ───────────────────────────────────────────────────────────────
 
@@ -30,33 +31,6 @@ interface Task {
   detail: string;
 }
 
-const TASKS: Task[] = [
-  {
-    id: "eye-contact",
-    title: "Eye Contact Check",
-    domain: "Social Communication",
-    icon: "visibility",
-    instruction: "Hold the phone at your child's eye level",
-    detail: "A gentle chime plays every few seconds. Watch whether your child looks at the screen. Keep the session calm and natural.",
-  },
-  {
-    id: "name-response",
-    title: "Name Response",
-    domain: "Social Communication · Critical",
-    icon: "record_voice_over",
-    instruction: "The app will call your child's name three times",
-    detail: "Hold the phone about 1 metre behind your child. We'll measure whether they turn toward the sound within 4 seconds.",
-  },
-  {
-    id: "gaze-follow",
-    title: "Gaze Following",
-    domain: "Joint Attention",
-    icon: "track_changes",
-    instruction: "Show your child the moving dot",
-    detail: "Hold the phone at eye level. A dot moves left and right. We observe whether your child's gaze follows it.",
-  },
-];
-
 // ── UI helpers ────────────────────────────────────────────────────────────────
 
 const RISK_COLORS: Record<RiskLevel, { bg: string; text: string; border: string; dot: string }> = {
@@ -65,15 +39,9 @@ const RISK_COLORS: Record<RiskLevel, { bg: string; text: string; border: string;
   high:   { bg: "bg-surface-container",       text: "text-tertiary",  border: "border-outline-variant", dot: "bg-red-500" },
 };
 
-const RISK_LABELS: Record<RiskLevel, string> = {
-  low: "Typical", medium: "Emerging", high: "Elevated",
+const RISK_LABEL_KEYS: Record<RiskLevel, string> = {
+  low: "screen.risk.typical", medium: "screen.risk.emerging", high: "screen.risk.elevated",
 };
-
-function scoreLabel(score: number): { label: string; color: string } {
-  if (score >= 70) return { label: "Strong", color: "text-primary" };
-  if (score >= 40) return { label: "Emerging", color: "text-secondary" };
-  return { label: "Needs attention", color: "text-tertiary" };
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -88,7 +56,41 @@ interface TaskScores {
 export default function ScreenPage() {
   const { profile } = useProfile();
   const { saveVideoScreeningResults } = useApp();
+  const t = useTranslation();
   const childName = profile?.childName ?? "your child";
+
+  const TASKS: Task[] = [
+    {
+      id: "eye-contact",
+      title: t("screen.task.eye_contact.title"),
+      domain: t("screen.task.eye_contact.domain"),
+      icon: "visibility",
+      instruction: t("screen.task.eye_contact.instruction"),
+      detail: t("screen.task.eye_contact.detail"),
+    },
+    {
+      id: "name-response",
+      title: t("screen.task.name_response.title"),
+      domain: t("screen.task.name_response.domain"),
+      icon: "record_voice_over",
+      instruction: t("screen.task.name_response.instruction"),
+      detail: t("screen.task.name_response.detail"),
+    },
+    {
+      id: "gaze-follow",
+      title: t("screen.task.gaze_follow.title"),
+      domain: t("screen.task.gaze_follow.domain"),
+      icon: "track_changes",
+      instruction: t("screen.task.gaze_follow.instruction"),
+      detail: t("screen.task.gaze_follow.detail"),
+    },
+  ];
+
+  function scoreLabel(score: number): { label: string; color: string } {
+    if (score >= 70) return { label: t("screen.score.strong"), color: "text-primary" };
+    if (score >= 40) return { label: t("screen.score.emerging"), color: "text-secondary" };
+    return { label: t("screen.score.needs_attention"), color: "text-tertiary" };
+  }
 
   const [screen, setScreen] = useState<Screen>("intro");
   const [taskIndex, setTaskIndex] = useState(0);
@@ -164,6 +166,19 @@ export default function ScreenPage() {
     disposeFaceLandmarker();
     landmarkerRef.current = false;
   }, []);
+
+  // Re-attach stream to video element when task screen mounts.
+  // startCamera() acquires the stream during "permission" screen, but the
+  // <video> element only exists in the "task" screen block. Without this,
+  // the video feed is invisible because srcObject was set while videoRef was null.
+  useEffect(() => {
+    if (screen === "task" && videoRef.current && streamRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [screen]);
 
   // ── Dot animation ─────────────────────────────────────────────────────────
 
@@ -436,27 +451,25 @@ export default function ScreenPage() {
                 <span className="material-symbols-outlined text-primary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
                   videocam
                 </span>
-                <span className="text-[10px] font-label uppercase tracking-widest font-semibold text-primary">
-                  Vision Screening · Beta
+                <span className="text-caption-caps text-primary">
+                  {t("screen.intro.tag")}
                 </span>
               </div>
-              <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
-                Camera-Based<br />
-                <span className="text-primary">Behavioral Screen</span>
+              <h1 className="text-h1">
+                {t("screen.intro.title1")}<br />
+                <span className="text-primary">{t("screen.intro.title2")}</span>
               </h1>
-              <p className="text-sm text-on-surface-variant leading-relaxed">
-                NeuroBee uses your phone&apos;s front camera to automatically observe eye contact,
-                name response, and gaze following — then extracts 7 clinically-validated
-                neurological attention features from the raw gaze data.
+              <p className="text-body text-on-surface-variant">
+                {t("screen.intro.desc")}
               </p>
             </div>
 
             <div className="flex items-start gap-3 bg-primary/5 border border-primary/15 rounded-xl px-5 py-4">
               <span className="material-symbols-outlined text-primary shrink-0 mt-0.5">shield</span>
               <div>
-                <p className="text-xs font-semibold text-on-surface">100% on-device · no recording</p>
-                <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
-                  MediaPipe runs entirely on this device. Video is never stored or transmitted. The landmarker model is served locally from this app.
+                <p className="text-label text-on-surface">{t("screen.intro.privacy_title")}</p>
+                <p className="text-body-sm text-on-surface-variant mt-0.5">
+                  {t("screen.intro.privacy_desc")}
                 </p>
               </div>
             </div>
@@ -468,33 +481,33 @@ export default function ScreenPage() {
                     <span className="material-symbols-outlined text-primary text-lg">{task.icon}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-on-surface">{task.title}</p>
-                    <p className="text-[11px] text-tertiary uppercase tracking-widest font-label">{task.domain}</p>
+                    <p className="text-label text-on-surface">{task.title}</p>
+                    <p className="text-caption-caps normal-case text-tertiary">{task.domain}</p>
                   </div>
-                  <span className="text-[10px] font-label uppercase tracking-widest text-tertiary border border-outline-variant/30 rounded-full px-2 py-0.5">
-                    {i + 1} of 3
+                  <span className="text-caption-caps text-tertiary border border-outline-variant/30 rounded-full px-2 py-0.5">
+                    {i + 1} {t("screen.task.of")} 3
                   </span>
                 </div>
               ))}
             </div>
 
             <div className="bg-surface-container p-4 rounded-xl space-y-2">
-              <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">Features extracted</p>
+              <p className="text-caption-caps text-tertiary">{t("screen.intro.features_label")}</p>
               <div className="flex flex-wrap gap-2">
                 {["Gaze entropy", "Social gaze %", "Saccade freq.", "Fixation duration", "Blink rate", "Name latency", "Gaze following"].map((f) => (
-                  <span key={f} className="text-[10px] px-2.5 py-1 rounded-full bg-primary/10 text-primary font-label font-semibold">{f}</span>
+                  <span key={f} className="text-caption-caps px-2.5 py-1 rounded-full bg-primary/10 text-primary">{f}</span>
                 ))}
               </div>
             </div>
 
-            <p className="text-xs text-tertiary text-center">Total time: ~3 minutes · Requires front camera</p>
+            <p className="text-body-sm text-tertiary text-center">{t("screen.intro.time")}</p>
 
             <button
               onClick={handleBegin}
-              className="w-full bg-primary text-on-primary py-4 rounded-full font-headline font-bold text-base hover:opacity-90 transition-all botanical-shadow flex items-center justify-center gap-2"
+              className="w-full bg-primary text-on-primary py-4 rounded-full text-label hover:opacity-90 transition-all botanical-shadow flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">play_circle</span>
-              Begin Screening
+              {t("screen.intro.begin")}
             </button>
           </div>
         )}
@@ -505,17 +518,17 @@ export default function ScreenPage() {
             {modelError ? (
               <>
                 <span className="material-symbols-outlined text-tertiary text-5xl">videocam_off</span>
-                <p className="font-headline text-xl font-bold text-on-surface">Camera unavailable</p>
-                <p className="text-sm text-on-surface-variant max-w-xs">{modelError}</p>
-                <button onClick={() => setScreen("intro")} className="mt-2 px-6 py-3 rounded-full border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container transition-all">Back</button>
+                <p className="text-h3 text-on-surface">{t("screen.permission.unavailable")}</p>
+                <p className="text-body text-on-surface-variant max-w-xs">{modelError}</p>
+                <button onClick={() => setScreen("intro")} className="mt-2 px-6 py-3 rounded-full border border-outline-variant/30 text-label text-on-surface hover:bg-surface-container transition-all">{t("screen.permission.back")}</button>
               </>
             ) : (
               <>
                 <div className="w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
-                <p className="font-headline text-xl font-bold text-on-surface">
-                  {modelLoading ? "Loading face detection model…" : "Starting camera…"}
+                <p className="text-h3 text-on-surface">
+                  {modelLoading ? t("screen.permission.loading") : t("screen.permission.starting")}
                 </p>
-                <p className="text-sm text-on-surface-variant">Model served locally — no internet needed</p>
+                <p className="text-body text-on-surface-variant">{t("screen.permission.local")}</p>
               </>
             )}
           </div>
@@ -526,23 +539,23 @@ export default function ScreenPage() {
           <div className="space-y-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-label uppercase tracking-widest text-tertiary">
-                  Task {taskIndex + 1} of {TASKS.length}
+                <span className="text-caption-caps text-tertiary">
+                  {t("screen.task.label")} {taskIndex + 1} {t("screen.task.of")} {TASKS.length}
                 </span>
-                <span className={`text-[10px] font-label uppercase tracking-widest font-semibold px-2.5 py-1 rounded-full ${faceDetected ? "bg-primary/10 text-primary" : "bg-surface-container text-tertiary"}`}>
-                  {faceDetected ? "Face detected" : "No face"}
+                <span className={`text-caption-caps px-2.5 py-1 rounded-full ${faceDetected ? "bg-primary/10 text-primary" : "bg-surface-container text-tertiary"}`}>
+                  {faceDetected ? t("screen.task.face_detected") : t("screen.task.no_face")}
                 </span>
               </div>
-              <h2 className="font-headline text-2xl font-extrabold text-on-surface">{currentTask.title}</h2>
-              <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">{currentTask.domain}</p>
+              <h2 className="text-h2 text-on-surface">{currentTask.title}</h2>
+              <p className="text-caption-caps text-tertiary">{currentTask.domain}</p>
             </div>
 
             <div className="space-y-1.5">
               <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
                 <div className="h-full rounded-full bg-primary-gradient transition-all duration-200" style={{ width: `${progressPct}%` }} />
               </div>
-              <div className="flex justify-between text-[10px] text-tertiary font-label uppercase tracking-widest">
-                <span>{Math.ceil((TASK_DURATION_MS - elapsed) / 1000)}s remaining</span>
+              <div className="flex justify-between text-caption-caps text-tertiary">
+                <span>{Math.ceil((TASK_DURATION_MS - elapsed) / 1000)}{t("screen.task.remaining_suffix")}</span>
                 <span>{faceDetected ? `${eyeContactFramesRef.current.length + nameResponseFramesRef.current.length + gazeFollowFramesRef.current.length} frames` : "—"}</span>
               </div>
             </div>
@@ -561,14 +574,14 @@ export default function ScreenPage() {
               )}
 
               {currentTask.id === "name-response" && nameCallIndex > 0 && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-primary/90 text-on-primary px-4 py-2 rounded-full text-xs font-bold backdrop-blur-sm">
-                  Name called: {nameCallIndex} / 3
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-primary/90 text-on-primary px-4 py-2 rounded-full text-label backdrop-blur-sm">
+                  {t("screen.task.name_called_prefix")} {nameCallIndex} / 3
                 </div>
               )}
 
               {currentTask.id === "eye-contact" && faceDetected && (
-                <div className="absolute bottom-4 left-4 bg-surface/80 backdrop-blur-sm rounded-xl px-3 py-1.5 text-xs font-semibold text-on-surface">
-                  Social gaze: {lookingPct}%
+                <div className="absolute bottom-4 left-4 bg-surface/80 backdrop-blur-sm rounded-xl px-3 py-1.5 text-label text-on-surface">
+                  {t("screen.task.social_gaze_prefix")} {lookingPct}%
                 </div>
               )}
             </div>
@@ -576,9 +589,9 @@ export default function ScreenPage() {
             <div className="bg-surface-container-low rounded-2xl p-5 space-y-2 border border-outline-variant/15">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>{currentTask.icon}</span>
-                <p className="font-semibold text-sm text-on-surface">{currentTask.instruction}</p>
+                <p className="text-label text-on-surface">{currentTask.instruction}</p>
               </div>
-              <p className="text-xs text-on-surface-variant leading-relaxed pl-7">{currentTask.detail}</p>
+              <p className="text-body-sm text-on-surface-variant pl-7">{currentTask.detail}</p>
             </div>
           </div>
         )}
@@ -588,24 +601,24 @@ export default function ScreenPage() {
           <div className="space-y-8">
             {/* Header */}
             <div className="space-y-2">
-              <span className="text-[10px] font-label uppercase tracking-widest text-tertiary">Screening complete</span>
-              <h1 className="font-headline text-3xl font-extrabold text-on-surface">Vision Results</h1>
+              <span className="text-caption-caps text-tertiary">{t("screen.results.tag")}</span>
+              <h1 className="text-h1">{t("screen.results.title")}</h1>
               {compositeScore !== null && (
                 <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
                   compositeScore >= 70 ? "bg-primary/10 border border-primary/20" :
                   compositeScore >= 40 ? "bg-secondary-container/40 border border-secondary/20" :
                   "bg-surface-container border border-outline-variant"
                 }`}>
-                  <span className={`font-headline text-2xl font-extrabold ${scoreLabel(compositeScore).color}`}>{compositeScore}%</span>
-                  <span className={`text-sm font-semibold ${scoreLabel(compositeScore).color}`}>{scoreLabel(compositeScore).label}</span>
-                  <span className="text-xs text-tertiary">composite</span>
+                  <span className={`text-h2 ${scoreLabel(compositeScore).color}`}>{compositeScore}%</span>
+                  <span className={`text-label ${scoreLabel(compositeScore).color}`}>{scoreLabel(compositeScore).label}</span>
+                  <span className="text-caption-caps normal-case text-tertiary">{t("screen.results.composite")}</span>
                 </div>
               )}
             </div>
 
             {/* Per-task scores */}
             <section className="space-y-3">
-              <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">Task scores</p>
+              <p className="text-caption-caps text-tertiary">{t("screen.results.task_scores")}</p>
               {TASKS.map((task) => {
                 const score = scores[task.id] ?? 0;
                 const { label, color } = scoreLabel(score);
@@ -615,13 +628,13 @@ export default function ScreenPage() {
                       <div className="flex items-center gap-3">
                         <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>{task.icon}</span>
                         <div>
-                          <p className="text-sm font-bold text-on-surface">{task.title}</p>
-                          <p className="text-[10px] text-tertiary font-label uppercase tracking-widest">{task.domain}</p>
+                          <p className="text-label text-on-surface">{task.title}</p>
+                          <p className="text-caption-caps text-tertiary">{task.domain}</p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`font-headline text-xl font-extrabold ${color}`}>{score}%</p>
-                        <p className={`text-[10px] font-label uppercase tracking-widest ${color}`}>{label}</p>
+                        <p className={`text-h2 ${color}`}>{score}%</p>
+                        <p className={`text-caption-caps ${color}`}>{label}</p>
                       </div>
                     </div>
                     <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
@@ -637,10 +650,10 @@ export default function ScreenPage() {
               <section className="space-y-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">Neurological Patterns</p>
-                    <h2 className="font-headline text-xl font-bold text-on-surface">Domain Analysis</h2>
+                    <p className="text-caption-caps text-tertiary">Neurological Patterns</p>
+                    <h2 className="text-h3 text-on-surface">Domain Analysis</h2>
                   </div>
-                  <span className={`text-[10px] font-label uppercase tracking-widest px-2.5 py-1 rounded-full border ${
+                  <span className={`text-caption-caps px-2.5 py-1 rounded-full border ${
                     neuroRisk.confidence === "high" ? "bg-primary/10 text-primary border-primary/20" :
                     neuroRisk.confidence === "moderate" ? "bg-secondary-container/40 text-secondary border-secondary/20" :
                     "bg-surface-container text-tertiary border-outline-variant/30"
@@ -664,9 +677,9 @@ export default function ScreenPage() {
                           <span className={`material-symbols-outlined text-lg ${c.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-bold uppercase tracking-widest ${c.text}`}>{RISK_LABELS[level]}</p>
-                          <p className="text-sm font-bold text-on-surface">{label}</p>
-                          <p className="text-[10px] text-tertiary font-label">{mchat}</p>
+                          <p className={`text-caption-caps ${c.text}`}>{t(RISK_LABEL_KEYS[level])}</p>
+                          <p className="text-label text-on-surface">{label}</p>
+                          <p className="text-caption-caps normal-case text-tertiary">{mchat}</p>
                         </div>
                         <div className={`w-2.5 h-2.5 rounded-full ${c.dot} shrink-0`} />
                       </div>
@@ -676,36 +689,36 @@ export default function ScreenPage() {
 
                 {/* Overall */}
                 <div className={`p-5 rounded-2xl border space-y-1 ${RISK_COLORS[neuroRisk.overall].bg} ${RISK_COLORS[neuroRisk.overall].border}`}>
-                  <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">Overall neuro pattern</p>
+                  <p className="text-caption-caps text-tertiary">Overall neuro pattern</p>
                   <div className="flex items-center gap-3">
-                    <span className={`font-headline text-2xl font-extrabold ${RISK_COLORS[neuroRisk.overall].text}`}>
-                      {RISK_LABELS[neuroRisk.overall]}
+                    <span className={`text-h2 ${RISK_COLORS[neuroRisk.overall].text}`}>
+                      {t(RISK_LABEL_KEYS[neuroRisk.overall])}
                     </span>
-                    <span className="text-xs text-on-surface-variant">across all domains</span>
+                    <span className="text-body-sm text-on-surface-variant">across all domains</span>
                   </div>
                 </div>
 
                 {/* Feature flags */}
                 {neuroRisk.featureFlags.length > 0 && (
                   <div className="space-y-3">
-                    <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">Observed Signals</p>
+                    <p className="text-caption-caps text-tertiary">Observed Signals</p>
                     {neuroRisk.featureFlags.map((flag, i) => {
                       const c = RISK_COLORS[flag.severity];
                       return (
                         <div key={i} className={`p-4 rounded-xl border space-y-1.5 ${c.bg} ${c.border}`}>
                           <div className="flex items-center gap-2">
                             <span className={`w-1.5 h-1.5 rounded-full ${c.dot} shrink-0`} />
-                            <p className={`text-xs font-bold ${c.text}`}>{flag.label}</p>
-                            <span className="text-[10px] text-tertiary font-label ml-auto">{flag.domain}</span>
+                            <p className={`text-label mt-0.5 ${c.text}`}>{flag.label}</p>
+                            <span className="text-caption-caps normal-case text-tertiary ml-auto">{flag.domain}</span>
                           </div>
-                          <p className="text-xs text-on-surface-variant leading-relaxed pl-3.5">{flag.detail}</p>
+                          <p className="text-body-sm text-on-surface-variant pl-3.5">{flag.detail}</p>
                         </div>
                       );
                     })}
                     {neuroRisk.featureFlags.length === 0 && (
                       <div className="p-4 rounded-xl border border-primary/15 bg-primary/5">
-                        <p className="text-sm text-primary font-semibold">No elevated signals detected</p>
-                        <p className="text-xs text-on-surface-variant mt-1">All 7 gaze features were within typical ranges.</p>
+                        <p className="text-label text-primary">No elevated signals detected</p>
+                        <p className="text-body-sm text-on-surface-variant mt-1">All 7 gaze features were within typical ranges.</p>
                       </div>
                     )}
                   </div>
@@ -715,7 +728,7 @@ export default function ScreenPage() {
                 {neuroFeatures && (
                   <details className="group bg-surface-container rounded-xl cursor-pointer">
                     <summary className="flex items-center justify-between p-4 list-none">
-                      <span className="text-xs font-semibold text-on-surface">Raw feature values</span>
+                      <span className="text-label text-on-surface">Raw feature values</span>
                       <span className="material-symbols-outlined text-tertiary group-open:rotate-180 transition-transform text-sm">expand_more</span>
                     </summary>
                     <div className="px-4 pb-4 grid grid-cols-2 gap-2">
@@ -730,15 +743,15 @@ export default function ScreenPage() {
                         ["Gaze follow", `${neuroFeatures.gazeFollowPct}%`, ""],
                       ] as [string, string, string][]).map(([name, val, unit]) => (
                         <div key={name} className="bg-surface-container-lowest rounded-lg p-3">
-                          <p className="text-[10px] text-tertiary font-label uppercase tracking-widest">{name}</p>
-                          <p className="text-sm font-bold text-on-surface">{val}<span className="text-xs font-normal text-tertiary ml-0.5">{unit}</span></p>
+                          <p className="text-caption-caps text-tertiary">{name}</p>
+                          <p className="text-label text-on-surface">{val}<span className="text-body-sm text-tertiary ml-0.5">{unit}</span></p>
                         </div>
                       ))}
                     </div>
                   </details>
                 )}
 
-                <p className="text-[11px] italic text-tertiary/70 text-center leading-relaxed px-2">
+                <p className="text-body-sm text-[11px] italic text-tertiary/70 text-center px-2">
                   These are observational indicators derived from gaze patterns, not diagnostic criteria.
                   Always discuss findings with a qualified paediatrician or developmental specialist.
                 </p>
@@ -747,8 +760,8 @@ export default function ScreenPage() {
 
             {/* M-CHAT-R mapping */}
             <div className="bg-surface-container p-5 rounded-2xl space-y-3">
-              <p className="text-[10px] font-label uppercase tracking-widest text-tertiary">M-CHAT-R domain mapping</p>
-              <div className="space-y-2 text-xs text-on-surface-variant">
+              <p className="text-caption-caps text-tertiary">M-CHAT-R domain mapping</p>
+              <div className="space-y-2 text-body-sm text-on-surface-variant">
                 <p>· <strong className="text-on-surface">Eye Contact + Name Response</strong> → Social Communication (critical domain)</p>
                 <p>· <strong className="text-on-surface">Gaze Following + Fixation</strong> → Joint Attention</p>
                 <p>· <strong className="text-on-surface">Entropy + Saccades</strong> → Attention Regulation / Sensory & Behaviour</p>
@@ -760,23 +773,23 @@ export default function ScreenPage() {
               {!saved ? (
                 <button
                   onClick={handleSave}
-                  className="w-full bg-primary text-on-primary py-4 rounded-full font-headline font-bold text-base hover:opacity-90 transition-all botanical-shadow flex items-center justify-center gap-2"
+                  className="w-full bg-primary text-on-primary py-4 rounded-full text-label hover:opacity-90 transition-all botanical-shadow flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined">save</span>
-                  Add to Assessment
+                  {t("screen.results.add_to_assessment")}
                 </button>
               ) : (
-                <div className="flex items-center justify-center gap-2 py-4 text-primary font-semibold">
+                <div className="flex items-center justify-center gap-2 py-4 text-primary text-label">
                   <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                  Saved to your session
+                  {t("screen.results.saved")}
                 </div>
               )}
               <Link
                 href="/insights"
-                className="w-full border border-outline-variant/30 text-on-surface py-4 rounded-full font-headline font-bold text-base hover:bg-surface-container transition-all flex items-center justify-center gap-2"
+                className="w-full border border-outline-variant/30 text-on-surface py-4 rounded-full text-label hover:bg-surface-container transition-all flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined">insights</span>
-                View Full Insights
+                {t("screen.results.view_insights")}
               </Link>
               <button
                 onClick={() => {
@@ -791,7 +804,7 @@ export default function ScreenPage() {
                 }}
                 className="text-center text-sm text-tertiary hover:text-on-surface transition-colors py-2"
               >
-                Run screening again
+                {t("screen.results.run_again")}
               </button>
             </div>
           </div>

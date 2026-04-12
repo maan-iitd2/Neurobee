@@ -22,6 +22,7 @@ export interface ProfileUser {
   childName: string;
   childDob: string;
   childAge: number;
+  language: "en" | "hi";
 }
 
 interface ProfileContextValue {
@@ -39,6 +40,7 @@ function toProfileUser(p: Profile): ProfileUser {
     childName: p.childName,
     childDob: p.childDob,
     childAge: computeChildAge(p.childDob),
+    language: p.language ?? "en",
   };
 }
 
@@ -46,9 +48,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProfileUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hydrate on mount
+  // Hydrate on mount — localStorage is only available on the client, so
+  // setState must be called inside useEffect here (SSR-safe pattern).
   useEffect(() => {
     const stored = loadProfile();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProfile(stored ? toProfileUser(stored) : null);
     setIsLoading(false);
   }, []);
@@ -60,23 +64,25 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const resetProfile = useCallback(() => {
     removeProfile();
-    // Also clear app data
     if (typeof window !== "undefined") {
       localStorage.removeItem("neurobee_state");
     }
     setProfile(null);
   }, []);
 
-  // Loading spinner while checking localStorage
+  // Loading screen — uses a plain <img> (not next/image) so that server
+  // and client produce byte-identical HTML during hydration.
   if (isLoading) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
-        <span
-          className="material-symbols-outlined text-primary text-5xl animate-spin"
-          style={{ fontVariationSettings: "'FILL' 1" }}
-        >
-          hive
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/Logo.png"
+          alt="Loading NeuroBee..."
+          width={64}
+          height={64}
+          className="animate-pulse object-contain"
+        />
       </div>
     );
   }

@@ -21,7 +21,6 @@ interface AuthUser {
 }
 
 const PRIMARY = [15, 107, 80] as [number, number, number];   // #0f6b50
-const AMBER   = [180, 120, 0] as [number, number, number];
 const GRAY    = [100, 100, 100] as [number, number, number];
 const LIGHT   = [245, 251, 248] as [number, number, number];
 const RED     = [180, 40, 40] as [number, number, number];
