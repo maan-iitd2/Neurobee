@@ -34,7 +34,19 @@
       "Bash(npx --prefix \"C:/volD/Ideas/Neurobee\" tsc --noEmit --project \"C:/volD/Ideas/Neurobee/tsconfig.json\")",
       "mcp__ide__getDiagnostics",
       "Bash(git:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(npx vercel:*)",
+      "Bash(vercel --version)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel --prod --yes)",
+      "Bash(vercel --prod --yes --name neurobee)",
+      "Bash(where cloudflared:*)",
+      "Bash(winget list:*)",
+      "Bash(winget install:*)",
+      "Bash(cloudflared:*)",
+      "Bash(\"/c/Program Files \\(x86\\)/cloudflared/cloudflared.exe\" tunnel --url http://localhost:1234 --logfile /tmp/cf_tunnel.log)",
+      "Bash(echo \"Tunnel PID: $!\" sleep 8 cat /tmp/cf_tunnel.log)",
+      "Bash(vercel env:*)"
     ]
   }
 }
