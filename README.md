@@ -2,7 +2,7 @@
   <img src="public/Logo.png" alt="NeuroBee Logo" width="180" />
 </p>
 
-<h1 align="center">NeuroBee</h1>
+<h1 align="center">NeuroBee ()</h1>
 
 <p align="center">
   <strong>Early developmental awareness for every Indian family.</strong>
@@ -76,6 +76,7 @@ NeuroBee changes that. It is a **free, private, clinically-grounded** progressiv
 - The optional reset button permanently erases everything.
 - Installable as a **Progressive Web App (PWA)** with offline support via service worker.
 
+### Reachable at - https://neurobee.vercel.app/
 ---
 
 ## Clinical Foundations
